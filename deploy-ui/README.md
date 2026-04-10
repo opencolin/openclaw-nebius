@@ -8,10 +8,10 @@ Deploy [OpenClaw](https://github.com/nichochar/openclaw) AI agents to [Nebius Cl
 
 | Path | Method | Inference | Best For |
 |------|--------|-----------|----------|
-| [**1. Local Install**](docs/path1-local-install.md) | `npm install -g openclaw` | Token Factory | Try it now, zero overhead |
-| [**2. Docker**](docs/path2-docker.md) | `docker run` pre-built image | Token Factory | Portable, reproducible |
-| [**3. GPU Serverless**](docs/path3-gpu-serverless.md) | NemoClaw on Nebius GPU | Local model | Custom models, data privacy |
-| [**4. CPU Serverless**](docs/path4-cpu-serverless.md) | OpenClaw on Nebius CPU | Token Factory | Production, always-on |
+| [**1. Local Install**](../deploy-guides/path1-local-install.md) | `npm install -g openclaw` | Token Factory | Try it now, zero overhead |
+| [**2. Docker**](../deploy-guides/path2-docker.md) | `docker run` pre-built image | Token Factory | Portable, reproducible |
+| [**3. GPU Serverless**](../deploy-guides/path3-gpu-serverless.md) | NemoClaw on Nebius GPU | Local model | Custom models, data privacy |
+| [**4. CPU Serverless**](../deploy-guides/path4-cpu-serverless.md) | OpenClaw on Nebius CPU | Token Factory | Production, always-on |
 
 ## Quick Start
 
@@ -42,16 +42,16 @@ export TOKEN_FACTORY_API_KEY={your-key}
 
 | Create Agent | Endpoints |
 |:---:|:---:|
-| ![Create](docs/screenshot-create.png) | ![Endpoints](docs/screenshot-endpoints.png) |
+| ![Create](images/screenshot-create.png) | ![Endpoints](images/screenshot-endpoints.png) |
 
 ## What's Included
 
 | | |
 |---|---|
 | **[Deploy UI](web/)** | Browser-based deployment wizard with endpoint management |
-| **[Install Scripts](docs/path4-cpu-serverless.md)** | One-command deploy to Nebius serverless |
-| **[Docker Images](docs/path2-docker.md)** | Pre-built public images on GHCR |
-| **[Setup Guide](NEBIUS-SETUP-GUIDE.md)** | Comprehensive Nebius configuration guide |
+| **[Install Scripts](../deploy-guides/path4-cpu-serverless.md)** | One-command deploy to Nebius serverless |
+| **[Docker Images](../deploy-guides/path2-docker.md)** | Pre-built public images on GHCR |
+| **[Setup Guide](../deploy-scripts/NEBIUS-SETUP-GUIDE.md)** | Comprehensive Nebius configuration guide |
 
 ## Public Docker Images
 

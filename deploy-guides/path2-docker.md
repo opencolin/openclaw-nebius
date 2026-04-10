@@ -69,5 +69,5 @@ curl http://localhost:8080
 
 ## Next steps
 
-- [Path 3: Nebius GPU Serverless](docs/path3-gpu-serverless.md) — self-contained with a local model
-- [Path 4: Nebius CPU Serverless + Token Factory](docs/path4-cpu-serverless.md) — production cloud deployment
+- [Path 3: Nebius GPU Serverless](path3-gpu-serverless.md) — self-contained with a local model
+- [Path 4: Nebius CPU Serverless + Token Factory](path4-cpu-serverless.md) — production cloud deployment

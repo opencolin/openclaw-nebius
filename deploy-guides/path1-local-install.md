@@ -50,6 +50,6 @@ openclaw gateway --bind loopback --auth token --token $OPENCLAW_GATEWAY_TOKEN
 
 ## Next steps
 
-- [Path 2: Docker + Token Factory](docs/path2-docker.md) — make it portable
-- [Path 3: Nebius GPU Serverless](docs/path3-gpu-serverless.md) — self-contained with a local model
-- [Path 4: Nebius CPU Serverless + Token Factory](docs/path4-cpu-serverless.md) — production cloud deployment
+- [Path 2: Docker + Token Factory](path2-docker.md) — make it portable
+- [Path 3: Nebius GPU Serverless](path3-gpu-serverless.md) — self-contained with a local model
+- [Path 4: Nebius CPU Serverless + Token Factory](path4-cpu-serverless.md) — production cloud deployment

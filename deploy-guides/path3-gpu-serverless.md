@@ -83,4 +83,4 @@ openclaw tui --url ws://localhost:28789 --token {your-password}
 
 ## Next steps
 
-- [Path 4: Nebius CPU Serverless + Token Factory](docs/path4-cpu-serverless.md) — hybrid cloud approach
+- [Path 4: Nebius CPU Serverless + Token Factory](path4-cpu-serverless.md) — hybrid cloud approach

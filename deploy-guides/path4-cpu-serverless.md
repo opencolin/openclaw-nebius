@@ -75,7 +75,7 @@ nebius ai endpoint create \
 
 ### Method 4: Deploy UI
 
-Run the [Deploy UI](../web/) locally or on a VM for a visual deployment experience with MysteryBox secrets integration, endpoint monitoring, and multi-region support.
+Run the [Deploy UI](../deploy-ui/web/) locally or on a VM for a visual deployment experience with MysteryBox secrets integration, endpoint monitoring, and multi-region support.
 
 ```bash
 cd web && npm install && npm start
@@ -125,4 +125,4 @@ nebius mysterybox secret create \
 
 - Connect messaging channels (Telegram, WhatsApp, Discord, Signal)
 - Set up monitoring and alerts
-- See the [Nebius Setup Guide](../NEBIUS-SETUP-GUIDE.md) for advanced configuration
+- See the [Nebius Setup Guide](../deploy-scripts/NEBIUS-SETUP-GUIDE.md) for advanced configuration
