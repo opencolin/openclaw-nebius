@@ -51,7 +51,7 @@ export TOKEN_FACTORY_API_KEY={your-key}
 | **[Deploy UI](web/)** | Browser-based deployment wizard with endpoint management |
 | **[Install Scripts](docs/path4-cpu-serverless.md)** | One-command deploy to Nebius serverless |
 | **[Docker Images](docs/path2-docker.md)** | Pre-built public images on GHCR |
-| **[Setup Guide](NEBIUS-SETUP-GUIDE.md)** | Comprehensive Nebius configuration guide |
+| **[Setup Guide](../deploy-guides/NEBIUS-SETUP-GUIDE.md)** | Comprehensive Nebius configuration guide |
 
 ## Public Docker Images
 

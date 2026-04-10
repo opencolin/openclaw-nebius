@@ -47,7 +47,7 @@ npm run dev:deploy   # Start the deploy web UI locally (port 3000)
 - Install scripts: `install-openclaw-serverless.sh`, `install-nemoclaw-serverless.sh`, `install-nemoclaw-vm.sh`
 - Cloud provisioning: `deploy-cloud.sh`, `setup-deploy-vm.sh`
 - Container assets: `Dockerfile`, `entrypoint.sh`, `healthcheck.sh`, `nginx-proxy.conf`
-- Docs: `BUILD_PLAN.md`, `NEBIUS-SETUP-GUIDE.md`
+- Docs moved to `deploy-guides/`: `BUILD_PLAN.md`, `NEBIUS-SETUP-GUIDE.md`, `openclaw-prompt.md`
 
 ## Nebius Conventions
 

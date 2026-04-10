@@ -125,4 +125,4 @@ nebius mysterybox secret create \
 
 - Connect messaging channels (Telegram, WhatsApp, Discord, Signal)
 - Set up monitoring and alerts
-- See the [Nebius Setup Guide](../NEBIUS-SETUP-GUIDE.md) for advanced configuration
+- See the [Nebius Setup Guide](../../deploy-guides/NEBIUS-SETUP-GUIDE.md) for advanced configuration
