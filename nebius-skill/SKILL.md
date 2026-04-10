@@ -149,10 +149,11 @@ nebius ai endpoint create \
   --container-port 18789 \
   --env "TOKEN_FACTORY_API_KEY=<key>" \
   --env "INFERENCE_MODEL=<model>" \
-  --env "OPENCLAW_WEB_PASSWORD=${WEB_PASSWORD}"
-# Access: nebius ai endpoint ssh <ENDPOINT_ID>
-# Dashboard tunnel: nebius ai endpoint ssh <ENDPOINT_ID> -- -N -L 28789:localhost:18789
-# Then open: http://localhost:28789/#token=${WEB_PASSWORD}&gatewayUrl=ws://localhost:28789
+  --env "OPENCLAW_WEB_PASSWORD=${WEB_PASSWORD}" \
+  --public
+# SSH: nebius ai endpoint ssh <ENDPOINT_ID>
+# Tunnel: ssh -f -N -L 28789:<PUBLIC_IP>:18789 nebius@<PUBLIC_IP>
+# Dashboard: http://localhost:28789/#token=${WEB_PASSWORD}&gatewayUrl=ws://localhost:28789
 ```
 
 **GPU deploy (self-hosted inference):**
@@ -166,9 +167,9 @@ nebius ai endpoint create \
   --container-port 8080 \
   --disk-size 100Gi \
   --shm-size 16Gi \
+  --public \
   --auth token \
   --token "<auth-token>"
-# Add --public only if you need direct external access (quota: 3 public IPs per tenant)
 ```
 
 ### 2. Compute VMs
@@ -326,12 +327,15 @@ nebius ai endpoint create \
   --env "TOKEN_FACTORY_URL=${TOKEN_FACTORY_URL}" \
   --env "INFERENCE_MODEL=$MODEL" \
   --env "OPENCLAW_WEB_PASSWORD=$PASSWORD" \
+  --public \
   --ssh-key "$(cat ~/.ssh/id_ed25519.pub 2>/dev/null || echo '')" \
   --format json
 ```
 
-> **Public IP (optional):** Add `--public` if you need direct external access and have quota available.
-> Check usage: stopped endpoints with public IPs still consume quota. Delete unused endpoints to free IPs.
+> **Public IP quota:** The default limit is 3 public IPs per tenant. Stopped endpoints with public IPs
+> still consume quota. Delete unused endpoints with `nebius ai endpoint delete <ID>` to free IPs.
+> You can omit `--public` for private-IP-only endpoints, but `nebius ai endpoint ssh` and direct SSH
+> both require a public IP.
 
 **Step 6. Wait for RUNNING state:**
 ```bash
@@ -341,10 +345,12 @@ nebius ai endpoint get <ENDPOINT_ID> --format yaml | grep -A5 'state\|private_ip
 
 **Step 7. Access the endpoint terminal (SSH):**
 
-Use the built-in `nebius ai endpoint ssh` command — it handles the VPC routing automatically, no public IP needed:
 ```bash
 nebius ai endpoint ssh <ENDPOINT_ID>
+# or: ssh -o StrictHostKeyChecking=no nebius@<PUBLIC_IP>
 ```
+
+> **Note:** `nebius ai endpoint ssh` requires a public IP on the endpoint.
 
 Once inside the endpoint, verify the container is healthy:
 ```bash
@@ -356,18 +362,13 @@ curl http://localhost:8080
 
 From your **local machine** (not the endpoint), tunnel port 18789 through the endpoint:
 ```bash
-# Option A: If the endpoint has a public IP:
 ssh -f -N -o StrictHostKeyChecking=no -L 28789:<PUBLIC_IP>:18789 nebius@<PUBLIC_IP>
-
-# Option B: If the endpoint has only a private IP, use the Nebius CLI SSH proxy:
-nebius ai endpoint ssh <ENDPOINT_ID> -- -N -L 28789:localhost:18789
 ```
 
 **Step 9. Auto-approve device pairing** (the gateway token must be passed or the approve command fails with "unauthorized"):
 
 ```bash
-# Via nebius ai endpoint ssh:
-nebius ai endpoint ssh <ENDPOINT_ID> -- \
+ssh -o StrictHostKeyChecking=no nebius@<PUBLIC_IP> \
   "sudo docker exec \$(sudo docker ps -q | head -1) \
    env OPENCLAW_GATEWAY_TOKEN=$PASSWORD openclaw devices approve --latest"
 ```
@@ -375,7 +376,7 @@ nebius ai endpoint ssh <ENDPOINT_ID> -- \
 **Step 10. Tell the user how to connect** (always use localhost URLs, never direct IP):
 - Dashboard: `http://localhost:28789/#token=<PASSWORD>&gatewayUrl=ws://localhost:28789`
 - TUI: `openclaw tui --url ws://localhost:28789 --token <PASSWORD>`
-- If the SSH tunnel dies, re-run the tunnel command from Step 8
+- If the SSH tunnel dies: `ssh -f -N -L 28789:<PUBLIC_IP>:18789 nebius@<PUBLIC_IP>`
 
 ### Pre-built Public Images
 
@@ -458,11 +459,7 @@ The entrypoint script generates `~/.openclaw/openclaw.json` at container startup
 - **Set dashboard password**: `--env "OPENCLAW_WEB_PASSWORD=<random-token>"`
 - **SSH tunnel required**: Browsers block device identity without HTTPS or localhost. Set up a tunnel first:
   ```bash
-  # If endpoint has a public IP:
   ssh -f -N -o StrictHostKeyChecking=no -L 28789:<PUBLIC_IP>:18789 nebius@<PUBLIC_IP>
-
-  # If endpoint has only a private IP (default), use the Nebius CLI SSH proxy:
-  nebius ai endpoint ssh <ENDPOINT_ID> -- -N -L 28789:localhost:18789
   ```
 - **Dashboard URL format** (always use localhost, never direct IP):
   `http://localhost:28789/#token=<password>&gatewayUrl=ws://localhost:28789`
@@ -470,18 +467,20 @@ The entrypoint script generates `~/.openclaw/openclaw.json` at container startup
   - `gatewayUrl` MUST accompany `token` or it becomes "pending" and is ignored
 - **Device pairing**: Each new browser/TUI requires pairing approval. The gateway token **must** be passed as an env var or the command fails with "unauthorized":
   ```bash
-  # Via nebius ai endpoint ssh:
-  nebius ai endpoint ssh <ENDPOINT_ID> -- \
-    "sudo docker exec \$(sudo docker ps -q | head -1) \
-     env OPENCLAW_GATEWAY_TOKEN=<password> openclaw devices approve --latest"
+  ssh nebius@<PUBLIC_IP> "sudo docker exec \$(sudo docker ps -q | head -1) \
+    env OPENCLAW_GATEWAY_TOKEN=<password> openclaw devices approve --latest"
   ```
 
 ### Accessing the Endpoint Terminal
 
-Use `nebius ai endpoint ssh` to get a shell on the endpoint VM — no public IP needed:
 ```bash
+# Option A: Via Nebius CLI (requires public IP):
 nebius ai endpoint ssh <ENDPOINT_ID>
-# You're now on the endpoint VM. Check the container:
+
+# Option B: Direct SSH (requires public IP):
+ssh -o StrictHostKeyChecking=no nebius@<PUBLIC_IP>
+
+# Once inside, check the container:
 sudo docker ps
 sudo docker logs $(sudo docker ps -q | head -1) --tail 50
 curl http://localhost:8080   # health check
@@ -491,15 +490,11 @@ curl http://localhost:8080   # health check
 
 ```bash
 # 1. SSH tunnel (if not already set up for dashboard):
-#    With public IP:
 ssh -f -N -o StrictHostKeyChecking=no -L 28789:<PUBLIC_IP>:18789 nebius@<PUBLIC_IP>
-#    Without public IP (private IP only):
-nebius ai endpoint ssh <ENDPOINT_ID> -- -N -L 28789:localhost:18789
 
 # 2. Approve device pairing (first time only — must include gateway token):
-nebius ai endpoint ssh <ENDPOINT_ID> -- \
-  "sudo docker exec \$(sudo docker ps -q | head -1) \
-   env OPENCLAW_GATEWAY_TOKEN=<password> openclaw devices approve --latest"
+ssh nebius@<PUBLIC_IP> "sudo docker exec \$(sudo docker ps -q | head -1) \
+  env OPENCLAW_GATEWAY_TOKEN=<password> openclaw devices approve --latest"
 
 # 3. Connect:
 openclaw tui --url ws://localhost:28789 --token <password>
