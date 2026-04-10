@@ -19,7 +19,7 @@ allowed-tools: Bash(nebius *), Bash(kubectl *), Bash(helm *), Bash(docker *), Ba
 argument-hint: "[service] [action] or describe what you want to deploy"
 
 metadata:
-  author: opencolin
+  author: colygon
   version: "1.1.0"
   # OpenClaw extension
   openclaw:
@@ -29,7 +29,7 @@ metadata:
     primaryEnv: NEBIUS_PROFILE
     emoji: "☁️"
     os: [macos, linux]
-    homepage: "https://github.com/opencolin/openclaw-nebius/tree/main/nebius-skill"
+    homepage: "https://github.com/colygon/openclaw-nebius/tree/main/nebius-skill"
 ---
 
 # /nebius — Nebius AI Cloud CLI Skill
@@ -269,11 +269,11 @@ When the user asks to deploy OpenClaw (or an AI agent), follow these steps:
 **Step 1. Choose image and model:**
 ```bash
 # OpenClaw (CPU, lightweight, Token Factory inference):
-IMAGE="ghcr.io/opencolin/openclaw-serverless:latest"
+IMAGE="ghcr.io/colygon/openclaw-serverless:latest"
 MODEL="zai-org/GLM-5"   # or: deepseek-ai/DeepSeek-R1-0528, MiniMaxAI/MiniMax-M2.5, zai-org/GLM-4.5
 
 # NemoClaw (GPU, local model, NVIDIA plugin):
-IMAGE="ghcr.io/opencolin/nemoclaw-serverless:latest"
+IMAGE="ghcr.io/colygon/nemoclaw-serverless:latest"
 ```
 
 **Step 2. Get a Token Factory API key** (if using Token Factory):
@@ -380,10 +380,10 @@ ssh -o StrictHostKeyChecking=no nebius@<PUBLIC_IP> \
 Pre-built images are available on GitHub Container Registry (no build required):
 ```bash
 # OpenClaw only (lightweight, ~400 MB, CPU)
-ghcr.io/opencolin/openclaw-serverless:latest
+ghcr.io/colygon/openclaw-serverless:latest
 
 # NemoClaw (OpenClaw + NVIDIA plugin, ~1.1 GB, GPU-ready)
-ghcr.io/opencolin/nemoclaw-serverless:latest
+ghcr.io/colygon/nemoclaw-serverless:latest
 ```
 
 ### OpenClaw Nebius Provider Plugin
@@ -392,7 +392,7 @@ After deploying OpenClaw, you can install the **Nebius provider plugin** to give
 
 **Install the plugin:**
 ```bash
-openclaw plugins install clawhub:@opencolin/openclaw-nebius
+openclaw plugins install clawhub:@colygon/openclaw-nebius
 ```
 
 **Configure the API key** (both locations needed):

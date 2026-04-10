@@ -1,5 +1,5 @@
 {
-  "name": "@opencolin/openclaw-nebius",
+  "name": "@colygon/openclaw-nebius",
   "version": "1.2.2",
   "type": "module",
   "description": "Nebius Token Factory provider plugin for OpenClaw — 44+ open-source models via a single endpoint",
@@ -40,7 +40,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/opencolin/openclaw-nebius.git",
+    "url": "https://github.com/colygon/openclaw-nebius.git",
     "directory": "tokenfactory-plugin"
   }
 }

@@ -27,7 +27,7 @@ echo "Save this password: $PASSWORD"
 
 nebius ai endpoint create \
   --name openclaw-agent \
-  --image ghcr.io/opencolin/openclaw-serverless:latest \
+  --image ghcr.io/colygon/openclaw-serverless:latest \
   --platform cpu-e2 \
   --preset 2vcpu-8gb \
   --container-port 8080 \

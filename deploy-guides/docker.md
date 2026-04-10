@@ -29,7 +29,7 @@ docker run -d \
   -e INFERENCE_MODEL=zai-org/GLM-5 \
   -e OPENCLAW_WEB_PASSWORD={your-password} \
   -p 8080:8080 -p 18789:18789 \
-  ghcr.io/opencolin/openclaw-serverless:latest
+  ghcr.io/colygon/openclaw-serverless:latest
 ```
 
 ### 2. Verify
@@ -58,8 +58,8 @@ curl http://localhost:8080
 
 | Image | Size | Description |
 |-------|------|-------------|
-| `ghcr.io/opencolin/openclaw-serverless:latest` | ~400 MB | OpenClaw agent (CPU) |
-| `ghcr.io/opencolin/nemoclaw-serverless:latest` | ~1.1 GB | OpenClaw + NVIDIA NemoClaw plugin |
+| `ghcr.io/colygon/openclaw-serverless:latest` | ~400 MB | OpenClaw agent (CPU) |
+| `ghcr.io/colygon/nemoclaw-serverless:latest` | ~1.1 GB | OpenClaw + NVIDIA NemoClaw plugin |
 
 ## When to use this
 

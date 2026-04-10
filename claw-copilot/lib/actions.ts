@@ -92,7 +92,7 @@ export const actions: Action[] = [
         name: "image",
         type: "string",
         description:
-          'Container image. Use "openclaw" for ghcr.io/opencolin/openclaw-serverless:latest, "nemoclaw" for ghcr.io/opencolin/nemoclaw-serverless:latest, or a full image URL for custom.',
+          'Container image. Use "openclaw" for ghcr.io/colygon/openclaw-serverless:latest, "nemoclaw" for ghcr.io/colygon/nemoclaw-serverless:latest, or a full image URL for custom.',
         required: true,
         enum: ["openclaw", "nemoclaw"],
       },
@@ -166,8 +166,8 @@ export const actions: Action[] = [
 
       // Resolve image
       const imageMap: Record<string, string> = {
-        openclaw: "ghcr.io/opencolin/openclaw-serverless:latest",
-        nemoclaw: "ghcr.io/opencolin/nemoclaw-serverless:latest",
+        openclaw: "ghcr.io/colygon/openclaw-serverless:latest",
+        nemoclaw: "ghcr.io/colygon/nemoclaw-serverless:latest",
       };
       const image = imageMap[imageArg] ?? imageArg;
 

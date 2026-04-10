@@ -37,14 +37,14 @@ Requirements:
 ## Step 2: Install the plugin
 
 ```bash
-openclaw plugins install clawhub:@opencolin/openclaw-nebius
+openclaw plugins install clawhub:@colygon/openclaw-nebius
 ```
 
 If the install fails with "already exists", remove the old version first and retry:
 
 ```bash
 rm -rf ~/.openclaw/extensions/nebius
-openclaw plugins install clawhub:@opencolin/openclaw-nebius
+openclaw plugins install clawhub:@colygon/openclaw-nebius
 ```
 
 ## Step 3: Get the API key

@@ -43,7 +43,7 @@ Guide users through deploying OpenClaw or NemoClaw AI agents to Nebius serverles
 - **Best reasoning**: nebius/Qwen/Qwen3-235B-A22B-Thinking-2507
 - **Largest model**: nebius/Qwen/Qwen3.5-397B-A17B
 - **Default region**: eu-north1 (Finland, cpu-e2)
-- **Default image**: ghcr.io/opencolin/openclaw-serverless:latest
+- **Default image**: ghcr.io/colygon/openclaw-serverless:latest
 
 ## Nebius Cloud Knowledge
 

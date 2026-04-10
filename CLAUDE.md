@@ -25,7 +25,7 @@ npm run build:copilot # Build claw-copilot for production
 ## Key Details
 
 ### tokenfactory-plugin
-- Published as `@opencolin/openclaw-nebius` on ClawhHub
+- Published as `@colygon/openclaw-nebius` on ClawhHub
 - ESM module targeting ES2022
 - Dev dependencies only: `openclaw`, `typescript`, `vitest`
 - Entry: `tokenfactory-plugin/index.ts`

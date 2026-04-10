@@ -36,7 +36,7 @@ Navigate to **Serverless AI -> Create endpoint** and configure:
 
 | Field | Value |
 |-------|-------|
-| **Image** | `ghcr.io/opencolin/openclaw-serverless:latest` |
+| **Image** | `ghcr.io/colygon/openclaw-serverless:latest` |
 | **Platform** | `cpu-e2` (EU North/US Central) or `cpu-d3` (EU West) |
 | **Preset** | `2vcpu-8gb` |
 | **Ports** | `8080`, `18789` |
@@ -51,7 +51,7 @@ Navigate to **Serverless AI -> Create endpoint** and configure:
 ```bash
 nebius ai endpoint create \
   --name openclaw-agent \
-  --image ghcr.io/opencolin/openclaw-serverless:latest \
+  --image ghcr.io/colygon/openclaw-serverless:latest \
   --platform cpu-e2 \
   --preset 2vcpu-8gb \
   --container-port 8080 \

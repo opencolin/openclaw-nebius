@@ -1978,7 +1978,7 @@ function showDemoBanner() {
   bold.textContent = 'Disclaimer';
   bannerText.append('🦞 ', bold, ' — claw.moi is not supported nor endorsed by Nebius B.V. To deploy real endpoints, run locally:');
   const cmd = document.createElement('code');
-  cmd.textContent = 'git clone https://github.com/opencolin/openclaw-nebius && cd openclaw-nebius/deploy-ui/web && npm i && npm start';
+  cmd.textContent = 'git clone https://github.com/colygon/openclaw-nebius && cd openclaw-nebius/deploy-ui/web && npm i && npm start';
   const closeBtn = document.createElement('button');
   closeBtn.className = 'demo-close';
   closeBtn.textContent = '\u00d7';
