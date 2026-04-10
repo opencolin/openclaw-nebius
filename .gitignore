@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.tsbuildinfo
+*.tgz
+.DS_Store
+*.log
+.env
+.env*
+*.pem
+*.key
+.nebius/
+.vercel
+endpoint-passwords.json
+web/data/sessions/

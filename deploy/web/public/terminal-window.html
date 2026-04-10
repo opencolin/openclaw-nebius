@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terminal</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦞</text></svg>">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; background: #0c0c14; overflow: hidden; }
+    #header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 12px; background: rgba(5, 43, 66, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+    }
+    #header .left { display: flex; align-items: center; gap: 8px; }
+    #header .icon { font-family: 'SF Mono', monospace; font-size: 14px; color: #22c55e; font-weight: 700; }
+    #header .title { font-size: 13px; font-weight: 600; color: #fff; }
+    #header .status {
+      font-size: 11px; padding: 2px 8px; border-radius: 10px;
+      text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;
+    }
+    .status.connecting { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .status.connected { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .status.disconnected { background: rgba(239,68,68,0.15); color: #ef4444; }
+    #terminal { flex: 1; padding: 4px; }
+    #terminal .xterm { height: 100%; }
+    body { display: flex; flex-direction: column; }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <div class="left">
+      <span class="icon">></span>
+      <span class="title" id="title">Terminal</span>
+      <span class="status connecting" id="status">CONNECTING...</span>
+    </div>
+  </div>
+  <div id="terminal"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.min.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const ip = params.get('ip');
+    const name = params.get('name') || ip;
+
+    document.getElementById('title').textContent = 'Terminal — ' + name + (ip ? ' (' + ip + ')' : '');
+    document.title = 'Terminal — ' + name;
+
+    const term = new Terminal({
+      cursorBlink: true, fontSize: 13,
+      fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', 'Menlo', monospace",
+      theme: {
+        background: '#0c0c14', foreground: '#e4e4ef', cursor: '#6366f1',
+        selectionBackground: 'rgba(99, 102, 241, 0.3)',
+        black: '#0a0a0f', red: '#ef4444', green: '#22c55e', yellow: '#f59e0b',
+        blue: '#6366f1', magenta: '#8b5cf6', cyan: '#06b6d4', white: '#e4e4ef',
+        brightBlack: '#888899', brightRed: '#f87171', brightGreen: '#4ade80',
+        brightYellow: '#fbbf24', brightBlue: '#818cf8', brightMagenta: '#a78bfa',
+        brightCyan: '#22d3ee', brightWhite: '#ffffff'
+      },
+      allowProposedApi: true
+    });
+
+    const fit = new FitAddon.FitAddon();
+    term.loadAddon(fit);
+    try { term.loadAddon(new WebLinksAddon.WebLinksAddon()); } catch (_) {}
+
+    term.open(document.getElementById('terminal'));
+    setTimeout(function() { fit.fit(); }, 50);
+    window.addEventListener('resize', function() { fit.fit(); });
+
+    function setStatus(s) {
+      var el = document.getElementById('status');
+      el.textContent = s.toUpperCase();
+      el.className = 'status ' + s;
+    }
+
+    if (!ip) {
+      term.write('\x1b[31mNo IP address provided.\x1b[0m\r\n');
+      setStatus('disconnected');
+    } else {
+      var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      var ws = new WebSocket(proto + '//' + location.host + '/ws/terminal?ip=' + encodeURIComponent(ip));
+
+      ws.onopen = function() { setStatus('connected'); };
+      ws.onmessage = function(e) {
+        try {
+          var msg = JSON.parse(e.data);
+          if (msg.type === 'data') {
+            if (msg.encoding === 'base64') {
+              var bytes = Uint8Array.from(atob(msg.data), function(c) { return c.charCodeAt(0); });
+              term.write(bytes);
+            } else {
+              term.write(msg.data);
+            }
+            setStatus('connected');
+          } else if (msg.type === 'status') {
+            setStatus(msg.status === 'connected' ? 'connected' : 'connecting');
+          } else if (msg.type === 'error') {
+            term.write('\r\n\x1b[31m' + (msg.message || 'Connection error') + '\x1b[0m\r\n');
+            setStatus('disconnected');
+          }
+        } catch (_) {
+          term.write(e.data);
+        }
+      };
+      ws.onclose = function() { setStatus('disconnected'); };
+      ws.onerror = function() { setStatus('disconnected'); };
+
+      term.onData(function(data) {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'input', data: data }));
+        }
+      });
+    }
+  </script>
+</body>
+</html>

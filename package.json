@@ -1,0 +1,22 @@
+{
+  "name": "openclaw-nebius",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Monorepo for OpenClaw + Nebius integration: provider plugin, deployment UI, and Claude Code skill",
+  "workspaces": [
+    "nebius-plugin",
+    "deploy/web"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=nebius-plugin",
+    "test": "npm run test --workspace=nebius-plugin",
+    "check": "npm run check --workspace=nebius-plugin",
+    "dev:deploy": "npm run dev --workspace=deploy/web",
+    "start:deploy": "npm run start --workspace=deploy/web"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/colygon/openclaw-nebius.git"
+  },
+  "license": "MIT"
+}

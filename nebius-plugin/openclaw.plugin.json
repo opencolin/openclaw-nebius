@@ -1,0 +1,26 @@
+{
+  "id": "nebius",
+  "name": "Nebius Token Factory",
+  "description": "Nebius Token Factory model provider — access Qwen, DeepSeek, GLM, Llama, Gemma, FLUX, and more via a single OpenAI-compatible endpoint",
+  "providers": ["nebius"],
+  "modelSupport": {
+    "modelPrefixes": ["nebius/"]
+  },
+  "providerAuthEnvVars": {
+    "nebius": ["NEBIUS_API_KEY"]
+  },
+  "providerAuthChoices": [
+    {
+      "provider": "nebius",
+      "method": "api-key",
+      "choiceId": "nebius-api-key",
+      "choiceLabel": "Nebius Token Factory API key",
+      "cliFlag": "--nebius-api-key"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+  }
+}

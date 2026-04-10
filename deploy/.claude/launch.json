@@ -1,0 +1,42 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "NemoClaw Deploy UI",
+      "runtimeExecutable": "/opt/homebrew/Cellar/node/24.2.0/bin/node",
+      "runtimeArgs": ["web/server.js"],
+      "port": 3000,
+      "autoPort": false
+    },
+    {
+      "name": "OpenClaw Serverless (Nebius eu-north1)",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["install-openclaw-serverless.sh"],
+      "port": 8080
+    },
+    {
+      "name": "NemoClaw Serverless (Nebius eu-north1)",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["install-nemoclaw-serverless.sh"],
+      "port": 8080
+    },
+    {
+      "name": "NemoClaw GPU VM (Nebius H200)",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["install-nemoclaw-vm.sh"],
+      "port": 18789
+    },
+    {
+      "name": "NemoClaw Docker (local)",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["run", "--rm", "-p", "8080:8080", "-p", "18789:18789", "-e", "TOKEN_FACTORY_API_KEY", "-e", "INFERENCE_MODEL=deepseek-ai/DeepSeek-R1-0528", "nemoclaw:latest"],
+      "port": 8080
+    },
+    {
+      "name": "Health Check Server (standalone)",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-c", "import http.server,json;H=type('H',(http.server.BaseHTTPRequestHandler,),{'do_GET':lambda s:(s.send_response(200),s.send_header('Content-Type','application/json'),s.end_headers(),s.wfile.write(json.dumps({'status':'healthy','service':'nemoclaw'}).encode()))});http.server.HTTPServer(('0.0.0.0',8080),H).serve_forever()"],
+      "port": 8080
+    }
+  ]
+}

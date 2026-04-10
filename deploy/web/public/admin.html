@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenClaw Admin</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1a1a1e;
+    --bg2: #24242a;
+    --bg3: #2e2e36;
+    --border: #3a3a44;
+    --text: #e2e2e8;
+    --text2: #9898a8;
+    --accent: #6366f1;
+    --accent2: #818cf8;
+    --red: #f87171;
+    --amber: #fbbf24;
+    --indigo: #818cf8;
+    --slate: #94a3b8;
+    --green: #4ade80;
+    --sidebar-w: 260px;
+    --header-h: 48px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    height: var(--header-h);
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  header h1 { font-size: 14px; font-weight: 600; color: var(--accent2); }
+  header .spacer { flex: 1; }
+  .conn-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--slate);
+    display: inline-block;
+    margin-right: 4px;
+    transition: background 0.3s;
+  }
+  .conn-dot.live { background: var(--green); }
+  .conn-dot.err  { background: var(--red); }
+  .conn-label { color: var(--text2); font-size: 12px; }
+  .btn {
+    padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border);
+    background: var(--bg3); color: var(--text); cursor: pointer;
+    font-size: 12px; transition: background 0.15s;
+  }
+  .btn:hover { background: var(--border); }
+  .btn.danger { border-color: var(--red); color: var(--red); }
+  .btn.danger:hover { background: rgba(248,113,113,.12); }
+
+  /* ── Body layout ── */
+  .body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar ── */
+  aside {
+    width: var(--sidebar-w);
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+
+  .sidebar-section {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-section h2 {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--text2);
+    margin-bottom: 8px;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 0;
+    font-size: 12px;
+  }
+  .stat-row .label { color: var(--text2); }
+  .stat-row .value { color: var(--text); font-variant-numeric: tabular-nums; }
+
+  .filter-row { margin-bottom: 6px; }
+  .filter-row label { display: block; font-size: 11px; color: var(--text2); margin-bottom: 2px; }
+  select, input[type=text] {
+    width: 100%; padding: 4px 6px; border-radius: 4px;
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text); font-size: 12px; outline: none;
+  }
+  select:focus, input[type=text]:focus { border-color: var(--accent); }
+
+  .deploy-item {
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+  }
+  .deploy-item:last-child { border-bottom: none; }
+  .deploy-item .ts { color: var(--text2); }
+  .deploy-item .msg { color: var(--text); margin-top: 1px; }
+
+  /* ── Event feed ── */
+  main {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #event-feed {
+    flex: 1;
+  }
+
+  .event-row {
+    display: flex;
+    align-items: flex-start;
+    padding: 4px 12px;
+    border-bottom: 1px solid rgba(58,58,68,.4);
+    cursor: pointer;
+    transition: background 0.1s;
+    gap: 8px;
+  }
+  .event-row:hover { background: var(--bg2); }
+  .event-row.expanded { background: var(--bg2); }
+
+  .ev-ts {
+    font-size: 11px;
+    color: var(--text2);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    padding-top: 1px;
+  }
+
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    min-width: 40px;
+    text-align: center;
+    letter-spacing: .03em;
+  }
+  .badge.level-error { background: rgba(248,113,113,.15); color: var(--red); }
+  .badge.level-warn  { background: rgba(251,191,36,.12);  color: var(--amber); }
+  .badge.level-info  { background: rgba(129,140,248,.12); color: var(--indigo); }
+  .badge.level-debug { background: rgba(148,163,184,.08); color: var(--slate); }
+
+  .badge.cat {
+    background: rgba(99,102,241,.1);
+    color: var(--accent2);
+    min-width: unset;
+    font-size: 9px;
+    letter-spacing: .06em;
+  }
+
+  .ev-msg {
+    flex: 1;
+    color: var(--text);
+    font-size: 12px;
+    padding-top: 1px;
+    word-break: break-all;
+  }
+
+  .ev-expand {
+    font-size: 10px;
+    color: var(--text2);
+    flex-shrink: 0;
+    padding-top: 2px;
+    user-select: none;
+  }
+
+  .ev-context {
+    padding: 6px 12px 6px calc(12px + 8px + 56px + 8px + 56px + 8px);
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+  }
+  .ev-context pre {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    color: var(--text2);
+    white-space: pre-wrap;
+    word-break: break-all;
+    line-height: 1.5;
+  }
+
+  /* ── Login overlay ── */
+  #login-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(26,26,30,.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  #login-overlay.hidden { display: none; }
+
+  .login-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px;
+    width: 320px;
+  }
+  .login-box h2 { font-size: 18px; margin-bottom: 6px; color: var(--accent2); }
+  .login-box p { font-size: 12px; color: var(--text2); margin-bottom: 20px; }
+  .login-box input {
+    width: 100%; padding: 8px 10px; border-radius: 6px;
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text); font-size: 14px; outline: none;
+    margin-bottom: 12px;
+  }
+  .login-box input:focus { border-color: var(--accent); }
+  .login-btn {
+    width: 100%; padding: 9px; border-radius: 6px;
+    background: var(--accent); border: none;
+    color: #fff; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .login-btn:hover { opacity: .85; }
+  .login-error { color: var(--red); font-size: 12px; margin-top: 8px; min-height: 16px; }
+
+  /* ── Tabs ── */
+  .tab-group { display: flex; gap: 2px; background: var(--bg); border-radius: 6px; padding: 2px; }
+  .tab-btn {
+    padding: 4px 14px; border-radius: 4px; border: none;
+    background: transparent; color: var(--text2); font-size: 12px;
+    font-weight: 500; cursor: pointer; transition: all 0.15s;
+  }
+  .tab-btn.active { background: var(--accent); color: #fff; }
+  .tab-btn:not(.active):hover { color: var(--text); }
+
+  /* ── Analytics view ── */
+  #analytics-view { display: none; flex: 1; overflow-y: auto; padding: 20px; }
+  #analytics-view.active { display: block; }
+  #event-view { display: block; flex: 1; overflow-y: auto; }
+  #event-view.hidden-tab { display: none; }
+
+  .a-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .a-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px; text-align: center;
+  }
+  .a-card .a-val { font-size: 28px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .a-card .a-label { font-size: 11px; color: var(--text2); margin-top: 4px; text-transform: uppercase; letter-spacing: .05em; }
+  .a-card.highlight .a-val { color: var(--accent2); }
+
+  .a-section { margin-bottom: 24px; }
+  .a-section h3 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text2); margin-bottom: 10px; }
+
+  .a-chart { display: flex; align-items: flex-end; gap: 3px; height: 100px; }
+  .a-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+  .a-bar {
+    width: 100%; border-radius: 3px 3px 0 0;
+    background: var(--accent); min-height: 2px; transition: height 0.3s;
+  }
+  .a-bar.secondary { background: var(--green); }
+  .a-bar-label { font-size: 9px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .a-bar-val { font-size: 9px; color: var(--text); font-variant-numeric: tabular-nums; }
+  .a-legend { display: flex; gap: 16px; margin-top: 8px; }
+  .a-legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--text2); }
+  .a-legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+
+  .a-table { width: 100%; }
+  .a-table tr { border-bottom: 1px solid rgba(58,58,68,.3); }
+  .a-table td { padding: 4px 8px; font-size: 12px; }
+  .a-table td:first-child { color: var(--text); }
+  .a-table td:last-child { color: var(--text2); text-align: right; font-variant-numeric: tabular-nums; }
+
+  .a-row { display: flex; gap: 20px; flex-wrap: wrap; }
+  .a-col { flex: 1; min-width: 200px; }
+
+  .a-range { display: flex; gap: 4px; margin-bottom: 16px; }
+  .a-range .tab-btn { font-size: 11px; padding: 3px 10px; }
+
+  /* ── Misc ── */
+  .empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 120px;
+    color: var(--text2);
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Login overlay -->
+<div id="login-overlay">
+  <div class="login-box">
+    <h2>🦞 Admin</h2>
+    <p>OpenClaw Deploy UI — admin access</p>
+    <input type="password" id="admin-pw" placeholder="Admin password" autocomplete="current-password" />
+    <button class="login-btn" id="login-btn">Sign in</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- Header -->
+<header>
+  <h1>🦞 OpenClaw Admin</h1>
+  <div class="tab-group">
+    <button class="tab-btn active" id="tab-events" onclick="switchTab('events')">Events</button>
+    <button class="tab-btn" id="tab-analytics" onclick="switchTab('analytics')">Analytics</button>
+  </div>
+  <span class="spacer"></span>
+  <span class="conn-dot" id="conn-dot"></span>
+  <span class="conn-label" id="conn-label">Connecting…</span>
+  <button class="btn danger" id="logout-btn">Logout</button>
+</header>
+
+<!-- Body -->
+<div class="body">
+
+  <!-- Sidebar -->
+  <aside>
+    <!-- System stats -->
+    <div class="sidebar-section">
+      <h2>System</h2>
+      <div class="stat-row"><span class="label">Uptime</span><span class="value" id="stat-uptime">—</span></div>
+      <div class="stat-row"><span class="label">Event buffer</span><span class="value" id="stat-events">—</span></div>
+      <div class="stat-row"><span class="label">WS terminals</span><span class="value" id="stat-ws-term">—</span></div>
+      <div class="stat-row"><span class="label">WS logs</span><span class="value" id="stat-ws-logs">—</span></div>
+      <div class="stat-row"><span class="label">Tunnels</span><span class="value" id="stat-tunnels">—</span></div>
+      <div class="stat-row"><span class="label">Proxy endpoints</span><span class="value" id="stat-proxy">—</span></div>
+    </div>
+
+    <!-- Filters -->
+    <div class="sidebar-section">
+      <h2>Filters</h2>
+      <div class="filter-row">
+        <label>Level</label>
+        <select id="filter-level">
+          <option value="">All levels</option>
+          <option value="error">error</option>
+          <option value="warn">warn</option>
+          <option value="info">info</option>
+          <option value="debug">debug</option>
+        </select>
+      </div>
+      <div class="filter-row">
+        <label>Category</label>
+        <select id="filter-category">
+          <option value="">All categories</option>
+          <option value="SYSTEM">SYSTEM</option>
+          <option value="AUTH">AUTH</option>
+          <option value="DEPLOY">DEPLOY</option>
+          <option value="NEBIUS">NEBIUS</option>
+          <option value="TUNNEL">TUNNEL</option>
+          <option value="TERMINAL">TERMINAL</option>
+          <option value="MYSTERYBOX">MYSTERYBOX</option>
+          <option value="PROXY">PROXY</option>
+          <option value="API">API</option>
+        </select>
+      </div>
+      <div class="filter-row">
+        <label>Search</label>
+        <input type="text" id="filter-search" placeholder="message or context…" />
+      </div>
+    </div>
+
+    <!-- Recent deploys -->
+    <div class="sidebar-section" style="flex:1">
+      <h2>Recent Deploys</h2>
+      <div id="recent-deploys"><div class="empty-state">No deploys yet</div></div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main>
+    <!-- Event feed (default tab) -->
+    <div id="event-view">
+      <div id="event-feed"></div>
+    </div>
+
+    <!-- Analytics (second tab) -->
+    <div id="analytics-view">
+      <div class="a-range">
+        <button class="tab-btn active" onclick="setRange(7,this)">7d</button>
+        <button class="tab-btn" onclick="setRange(14,this)">14d</button>
+        <button class="tab-btn" onclick="setRange(30,this)">30d</button>
+        <button class="tab-btn" onclick="setRange(90,this)">90d</button>
+      </div>
+
+      <div class="a-cards" id="a-cards"></div>
+
+      <div class="a-section">
+        <h3>Traffic &amp; Deploys</h3>
+        <div id="a-chart" class="a-chart"></div>
+        <div class="a-legend">
+          <span class="a-legend-item"><span class="a-legend-dot" style="background:var(--accent)"></span> Visitors</span>
+          <span class="a-legend-item"><span class="a-legend-dot" style="background:var(--green)"></span> Deploys</span>
+        </div>
+      </div>
+
+      <div class="a-row">
+        <div class="a-col a-section">
+          <h3>Top Pages</h3>
+          <table class="a-table" id="a-pages"></table>
+        </div>
+        <div class="a-col a-section">
+          <h3>Browsers</h3>
+          <table class="a-table" id="a-browsers"></table>
+        </div>
+      </div>
+
+      <div class="a-row">
+        <div class="a-col a-section">
+          <h3>Deploys by Agent</h3>
+          <table class="a-table" id="a-agents"></table>
+        </div>
+        <div class="a-col a-section">
+          <h3>Deploys by Region</h3>
+          <table class="a-table" id="a-regions"></table>
+        </div>
+        <div class="a-col a-section">
+          <h3>Deploys by Platform</h3>
+          <table class="a-table" id="a-platforms"></table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ── State ──
+  const state = {
+    authenticated: false,
+    events: [],        // all events from server (keyed by id)
+    seenIds: new Set(),
+    filterLevel: '',
+    filterCategory: '',
+    filterSearch: '',
+    domRowCount: 0,
+    MAX_DOM_ROWS: 500,
+  };
+
+  let es = null; // EventSource
+
+  // ── DOM refs ──
+  const loginOverlay  = document.getElementById('login-overlay');
+  const adminPwInput  = document.getElementById('admin-pw');
+  const loginBtn      = document.getElementById('login-btn');
+  const loginError    = document.getElementById('login-error');
+  const logoutBtn     = document.getElementById('logout-btn');
+  const connDot       = document.getElementById('conn-dot');
+  const connLabel     = document.getElementById('conn-label');
+  const eventFeed     = document.getElementById('event-feed');
+  const filterLevel   = document.getElementById('filter-level');
+  const filterCat     = document.getElementById('filter-category');
+  const filterSearch  = document.getElementById('filter-search');
+
+  const statUptime    = document.getElementById('stat-uptime');
+  const statEvents    = document.getElementById('stat-events');
+  const statWsTerm    = document.getElementById('stat-ws-term');
+  const statWsLogs    = document.getElementById('stat-ws-logs');
+  const statTunnels   = document.getElementById('stat-tunnels');
+  const statProxy     = document.getElementById('stat-proxy');
+  const recentDeploys = document.getElementById('recent-deploys');
+
+  // ── Helpers ──
+  function fmtTime(iso) {
+    const d = new Date(iso);
+    return d.toLocaleTimeString('en-US', { hour12: false,
+      hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  function fmtUptime(secs) {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  }
+
+  function matchesFilter(ev) {
+    if (state.filterLevel && ev.level !== state.filterLevel) return false;
+    if (state.filterCategory && ev.category !== state.filterCategory) return false;
+    if (state.filterSearch) {
+      const q = state.filterSearch.toLowerCase();
+      const inMsg = ev.message.toLowerCase().includes(q);
+      const inCtx = ev.context ? JSON.stringify(ev.context).toLowerCase().includes(q) : false;
+      if (!inMsg && !inCtx) return false;
+    }
+    return true;
+  }
+
+  function createEventRow(ev) {
+    const hasCtx = ev.context && Object.keys(ev.context).length > 0;
+    const row = document.createElement('div');
+    row.className = 'event-row';
+    row.dataset.id = ev.id;
+    row.innerHTML = `
+      <span class="ev-ts">${fmtTime(ev.timestamp)}</span>
+      <span class="badge level-${ev.level}">${ev.level}</span>
+      <span class="badge cat">${ev.category}</span>
+      <span class="ev-msg">${escHtml(ev.message)}</span>
+      ${hasCtx ? '<span class="ev-expand">▶</span>' : ''}
+    `;
+
+    if (hasCtx) {
+      row.addEventListener('click', () => {
+        const existingCtx = row.nextSibling;
+        if (existingCtx && existingCtx.classList && existingCtx.classList.contains('ev-context')) {
+          existingCtx.remove();
+          row.classList.remove('expanded');
+          row.querySelector('.ev-expand').textContent = '▶';
+        } else {
+          const ctx = document.createElement('div');
+          ctx.className = 'ev-context';
+          ctx.innerHTML = `<pre>${escHtml(JSON.stringify(ev.context, null, 2))}</pre>`;
+          row.insertAdjacentElement('afterend', ctx);
+          row.classList.add('expanded');
+          row.querySelector('.ev-expand').textContent = '▼';
+        }
+      });
+    }
+    return row;
+  }
+
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function prependRow(ev) {
+    if (!matchesFilter(ev)) return;
+    const row = createEventRow(ev);
+    if (eventFeed.firstChild) {
+      eventFeed.insertBefore(row, eventFeed.firstChild);
+    } else {
+      eventFeed.appendChild(row);
+    }
+    state.domRowCount++;
+
+    // Trim DOM to cap
+    if (state.domRowCount > state.MAX_DOM_ROWS) {
+      const excess = eventFeed.querySelectorAll('.event-row, .ev-context');
+      let removed = 0;
+      for (let i = excess.length - 1; i >= 0 && removed < 10; i--) {
+        excess[i].remove();
+        removed++;
+      }
+      state.domRowCount = Math.max(0, state.domRowCount - removed);
+    }
+  }
+
+  function rebuildFeed() {
+    eventFeed.innerHTML = '';
+    state.domRowCount = 0;
+
+    // Show newest first — reverse the filtered events
+    const toShow = state.events.filter(matchesFilter).slice(-state.MAX_DOM_ROWS).reverse();
+    for (const ev of toShow) {
+      const row = createEventRow(ev);
+      eventFeed.appendChild(row);
+      state.domRowCount++;
+    }
+
+    if (state.domRowCount === 0) {
+      eventFeed.innerHTML = '<div class="empty-state">No events match the current filters</div>';
+    }
+  }
+
+  // ── Auth ──
+  async function tryLogin() {
+    loginError.textContent = '';
+    const pw = adminPwInput.value;
+    if (!pw) return;
+    try {
+      const r = await fetch('/admin/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw }),
+      });
+      if (r.status === 404) {
+        loginError.textContent = 'Admin panel is not configured on this server.';
+        return;
+      }
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}));
+        loginError.textContent = data.error || 'Login failed';
+        return;
+      }
+      adminPwInput.value = '';
+      loginOverlay.classList.add('hidden');
+      state.authenticated = true;
+      loadStatus();
+      loadHistory();
+      connectSSE();
+    } catch (e) {
+      loginError.textContent = 'Network error';
+    }
+  }
+
+  loginBtn.addEventListener('click', tryLogin);
+  adminPwInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+
+  logoutBtn.addEventListener('click', async () => {
+    await fetch('/admin/api/logout', { method: 'POST' });
+    location.reload();
+  });
+
+  // ── Boot ──
+  async function boot() {
+    try {
+      const r = await fetch('/admin/api/status');
+      if (r.status === 404) {
+        loginOverlay.querySelector('p').textContent = 'Admin panel is not enabled on this server.';
+        loginBtn.disabled = true;
+        adminPwInput.disabled = true;
+        return;
+      }
+      if (r.status === 401) {
+        // Show login form (already visible)
+        return;
+      }
+      if (r.ok) {
+        // Already authenticated (e.g. same session)
+        loginOverlay.classList.add('hidden');
+        state.authenticated = true;
+        const data = await r.json();
+        renderStatus(data.summary);
+        loadHistory();
+        connectSSE();
+      }
+    } catch (e) {
+      // Show login form
+    }
+  }
+
+  // ── Status ──
+  async function loadStatus() {
+    try {
+      const r = await fetch('/admin/api/status');
+      if (!r.ok) return;
+      const data = await r.json();
+      renderStatus(data.summary);
+    } catch (_) {}
+  }
+
+  function renderStatus(s) {
+    if (!s) return;
+    statUptime.textContent   = fmtUptime(s.uptime || 0);
+    statEvents.textContent   = s.eventBufferSize ?? '—';
+    statWsTerm.textContent   = s.wssTerminalClients ?? '—';
+    statWsLogs.textContent   = s.wssLogsClients ?? '—';
+    statTunnels.textContent  = s.activeTunnels ?? '—';
+    statProxy.textContent    = s.proxyEndpoints ?? '—';
+
+    if (s.recentDeploys && s.recentDeploys.length > 0) {
+      recentDeploys.innerHTML = s.recentDeploys.map(d => `
+        <div class="deploy-item">
+          <div class="ts">${fmtTime(d.timestamp)}</div>
+          <div class="msg">${escHtml(d.message)}${d.context?.name ? ' — ' + escHtml(d.context.name) : ''}</div>
+        </div>
+      `).join('');
+    }
+  }
+
+  // Poll status every 30s
+  setInterval(() => { if (state.authenticated) loadStatus(); }, 30000);
+
+  // ── Load history ──
+  async function loadHistory() {
+    try {
+      const r = await fetch('/admin/api/events?limit=2000');
+      if (!r.ok) return;
+      const events = await r.json();
+      // events are newest-first; store oldest-first internally
+      state.events = events.slice().reverse();
+      for (const e of state.events) state.seenIds.add(e.id);
+      rebuildFeed();
+    } catch (_) {}
+  }
+
+  // ── SSE ──
+  function connectSSE() {
+    if (es) { es.close(); es = null; }
+
+    es = new EventSource('/admin/api/stream');
+
+    es.onopen = () => {
+      connDot.className = 'conn-dot live';
+      connLabel.textContent = 'Live';
+    };
+
+    es.onerror = () => {
+      connDot.className = 'conn-dot err';
+      connLabel.textContent = 'Reconnecting…';
+    };
+
+    es.onmessage = (evt) => {
+      let record;
+      try { record = JSON.parse(evt.data); } catch (_) { return; }
+
+      // De-duplicate (buffer replay may overlap)
+      if (state.seenIds.has(record.id)) return;
+      state.seenIds.add(record.id);
+
+      // Insert into state array (maintain oldest-first order)
+      state.events.push(record);
+      if (state.events.length > 2000) state.events.shift();
+
+      // Add to top of DOM feed
+      prependRow(record);
+    };
+  }
+
+  // ── Filters ──
+  filterLevel.addEventListener('change', () => {
+    state.filterLevel = filterLevel.value;
+    rebuildFeed();
+  });
+  filterCat.addEventListener('change', () => {
+    state.filterCategory = filterCat.value;
+    rebuildFeed();
+  });
+  let searchTimer;
+  filterSearch.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      state.filterSearch = filterSearch.value.trim();
+      rebuildFeed();
+    }, 300);
+  });
+
+  // ── Tab switching ──
+  const eventView     = document.getElementById('event-view');
+  const analyticsView = document.getElementById('analytics-view');
+  const tabEvents     = document.getElementById('tab-events');
+  const tabAnalytics  = document.getElementById('tab-analytics');
+
+  window.switchTab = function(tab) {
+    tabEvents.classList.toggle('active', tab === 'events');
+    tabAnalytics.classList.toggle('active', tab === 'analytics');
+    if (tab === 'events') {
+      eventView.classList.remove('hidden-tab');
+      analyticsView.classList.remove('active');
+    } else {
+      eventView.classList.add('hidden-tab');
+      analyticsView.classList.add('active');
+      loadAnalytics(currentRange);
+    }
+  };
+
+  // ── Analytics ──
+  let currentRange = 7;
+  let analyticsCache = null;
+
+  window.setRange = function(days, btn) {
+    currentRange = days;
+    btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadAnalytics(days);
+  };
+
+  async function loadAnalytics(days) {
+    try {
+      const r = await fetch(`/admin/api/analytics?days=${days}`);
+      if (!r.ok) return;
+      analyticsCache = await r.json();
+      renderAnalytics(analyticsCache, days);
+    } catch (_) {}
+  }
+
+  function renderAnalytics(data, days) {
+    // Aggregate totals
+    let totalViews = 0, totalVisitors = 0, totalLogins = 0, totalDeploys = 0, totalErrors = 0;
+    const allPages = {}, allBrowsers = {}, allAgents = {}, allRegions = {}, allPlatforms = {};
+    const dailyArr = []; // oldest → newest
+
+    const dates = Object.keys(data).sort();
+    for (const d of dates) {
+      const day = data[d];
+      totalViews    += day.pageViews || 0;
+      totalVisitors += day.uniqueVisitors || 0;
+      totalLogins   += day.logins || 0;
+      totalDeploys  += day.deploys || 0;
+      totalErrors   += day.errors || 0;
+      merge(allPages, day.pages);
+      merge(allBrowsers, day.browsers);
+      merge(allAgents, day.deploysByAgent);
+      merge(allRegions, day.deploysByRegion);
+      merge(allPlatforms, day.deploysByPlatform);
+      dailyArr.push({ date: d, visitors: day.uniqueVisitors || 0, deploys: day.deploys || 0 });
+    }
+
+    // Cards
+    document.getElementById('a-cards').innerHTML = [
+      card(totalVisitors, 'Unique Visitors', true),
+      card(totalViews, 'Page Views'),
+      card(totalLogins, 'Logins'),
+      card(totalDeploys, 'Deploys', true),
+      card(totalErrors, 'Errors'),
+    ].join('');
+
+    // Chart
+    renderChart(dailyArr);
+
+    // Tables
+    renderTable('a-pages', allPages);
+    renderTable('a-browsers', allBrowsers);
+    renderTable('a-agents', allAgents);
+    renderTable('a-regions', allRegions);
+    renderTable('a-platforms', allPlatforms);
+  }
+
+  function merge(target, src) {
+    if (!src) return;
+    for (const [k, v] of Object.entries(src)) target[k] = (target[k] || 0) + v;
+  }
+
+  function card(val, label, highlight) {
+    return `<div class="a-card${highlight ? ' highlight' : ''}">
+      <div class="a-val">${val.toLocaleString()}</div>
+      <div class="a-label">${escHtml(label)}</div>
+    </div>`;
+  }
+
+  function renderChart(dailyArr) {
+    const el = document.getElementById('a-chart');
+    if (!dailyArr.length) { el.innerHTML = '<div class="empty-state">No data</div>'; return; }
+    const maxV = Math.max(1, ...dailyArr.map(d => d.visitors));
+    const maxD = Math.max(1, ...dailyArr.map(d => d.deploys));
+    const maxAll = Math.max(maxV, maxD);
+    el.innerHTML = dailyArr.map(d => {
+      const vH = Math.max(2, (d.visitors / maxAll) * 90);
+      const dH = Math.max(2, (d.deploys / maxAll) * 90);
+      const lbl = d.date.slice(5); // MM-DD
+      return `<div class="a-bar-col">
+        <div class="a-bar-val">${d.visitors || ''}</div>
+        <div style="display:flex;gap:1px;width:100%;align-items:flex-end;height:90px">
+          <div class="a-bar" style="height:${vH}px;flex:1"></div>
+          <div class="a-bar secondary" style="height:${dH}px;flex:1"></div>
+        </div>
+        <div class="a-bar-label">${lbl}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderTable(id, obj) {
+    const el = document.getElementById(id);
+    const sorted = Object.entries(obj).sort((a, b) => b[1] - a[1]);
+    if (!sorted.length) { el.innerHTML = '<tr><td colspan="2" style="color:var(--text2)">No data</td></tr>'; return; }
+    el.innerHTML = sorted.slice(0, 15).map(([k, v]) =>
+      `<tr><td>${escHtml(k)}</td><td>${v.toLocaleString()}</td></tr>`
+    ).join('');
+  }
+
+  // ── Init ──
+  boot();
+})();
+</script>
+</body>
+</html>

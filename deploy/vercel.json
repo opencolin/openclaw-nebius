@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "web/server.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "web/public/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "web/server.js" },
+    { "src": "/health", "dest": "web/server.js" },
+    { "src": "/(.*\\.(js|css|html|svg|png|ico|json))", "dest": "web/public/$1" },
+    { "src": "/(.*)", "dest": "web/public/index.html" }
+  ]
+}

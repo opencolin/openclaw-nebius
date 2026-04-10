@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Deploy OpenClaw with 1-click">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦞</text></svg>">
+  <title>Claw.Moi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+  <script>(function(){var t=localStorage.getItem('theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.setAttribute('data-theme','dark')})()</script>
+</head>
+<body>
+  <div id="app">
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen">
+      <button class="theme-toggle login-theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">
+        <span class="theme-icon">🌙</span>
+      </button>
+      <div class="login-card">
+        <div class="logo">🦞</div>
+        <h1>Claw.Moi</h1>
+        <p class="subtitle">Deploy OpenClaw with 1-click</p>
+        <button id="login-btn" class="btn btn-primary btn-lg" onclick="login()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+          I understand this is a Beta
+        </button>
+
+        <div id="token-form" style="display:none">
+          <p class="token-instructions">Install the Nebius CLI and get your token for access.</p>
+          <div class="token-cmd-wrap">
+            <code class="token-cmd" style="font-size:0.75rem">curl -sSL https://storage.eu-north1.nebius.cloud/cli/install.sh | bash</code>
+            <button class="token-copy-btn" onclick="navigator.clipboard.writeText('curl -sSL https://storage.eu-north1.nebius.cloud/cli/install.sh | bash')" title="Copy command">📋</button>
+          </div>
+          <div class="token-cmd-wrap">
+            <code class="token-cmd">nebius iam get-access-token</code>
+            <button class="token-copy-btn" onclick="navigator.clipboard.writeText('nebius iam get-access-token')" title="Copy command">📋</button>
+          </div>
+          <p class="token-instructions dim">Paste the token below</p>
+          <input type="password" id="token-input" class="token-input" placeholder="Paste access token here" onkeydown="if(event.key==='Enter')submitToken()" autocomplete="off">
+          <div class="token-actions">
+            <button id="token-submit-btn" class="btn btn-primary" onclick="submitToken()">Verify & Login</button>
+            <button class="btn btn-ghost" onclick="cancelLogin()">Cancel</button>
+          </div>
+        </div>
+
+        <p class="hint" id="login-hint"></p>
+        <a href="/demo" class="demo-link">or try the demo →</a>
+
+        <div class="prototype-notice">
+          <p><strong>Disclaimer:</strong> openclaw-deploy and claw.moi is not supported nor endorsed by Nebius B.V.</p>
+          <p>For full functionality, clone the repo and run locally:</p>
+          <div class="token-cmd-wrap">
+            <code class="token-cmd" style="font-size:0.75rem">git clone https://github.com/colygon/openclaw-deploy && cd openclaw-deploy/web && npm install && npm start</code>
+            <button class="token-copy-btn" onclick="navigator.clipboard.writeText('git clone https://github.com/colygon/openclaw-deploy && cd openclaw-deploy/web && npm install && npm start')" title="Copy command">📋</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main App (sidebar + content) -->
+    <div id="main-app" class="main-app hidden">
+      <!-- Sidebar -->
+      <nav class="sidebar">
+        <div class="sidebar-brand">
+          <span class="logo-sm">🦞</span>
+          <span class="sidebar-title">Claw.Moi</span>
+          <a href="https://github.com/colygon/openclaw-deploy" target="_blank" class="sidebar-github" title="GitHub">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          </a>
+          <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">
+            <span class="theme-icon">🌙</span>
+          </button>
+        </div>
+
+        <div class="sidebar-nav">
+          <button class="nav-item" data-page="start" onclick="switchPage('start')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Getting Started
+          </button>
+          <button class="nav-item" data-page="chat" onclick="switchPage('chat')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Chat Deploy
+          </button>
+          <button class="nav-item" data-page="deploy" onclick="switchPage('deploy')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Quick Start
+          </button>
+          <button class="nav-item active" data-page="endpoints" onclick="switchPage('endpoints')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            Endpoints
+            <span id="endpoints-count" class="nav-badge hidden">0</span>
+          </button>
+          <button class="nav-item" data-page="registry" onclick="switchPage('registry')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12H2"/><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></svg>
+            Docker Registry
+          </button>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="sidebar-user">
+            <div class="user-avatar" id="user-avatar">?</div>
+            <span id="user-info" class="sidebar-username"></span>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="logout()">Logout</button>
+        </div>
+      </nav>
+
+      <!-- Content Area -->
+      <div class="content-area">
+        <!-- Chat Deploy Page -->
+        <div id="page-chat" class="page hidden">
+          <div class="chat-layout">
+            <div class="chat-header">
+              <span class="chat-header-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                Chat Deploy
+              </span>
+              <button class="btn btn-ghost btn-sm" onclick="resetChat()">Start over</button>
+            </div>
+            <div id="chat-messages" class="chat-messages"></div>
+            <div class="chat-footer">
+              <input type="text" id="chat-input" class="chat-input" placeholder="Pick an option above…" disabled
+                onkeydown="if(event.key==='Enter')chatSend()" autocomplete="off" />
+              <button id="chat-send" class="chat-send-btn" onclick="chatSend()" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Getting Started Page -->
+        <div id="page-start" class="page hidden">
+          <div class="page-header">
+            <h2>Getting Started</h2>
+            <p class="page-desc">Deploy your first AI agent in three steps</p>
+          </div>
+          <div class="page-body gs-page">
+
+            <div class="gs-step">
+              <div class="gs-step-num">1</div>
+              <div class="gs-step-body">
+                <h3>Get a Token Factory API key</h3>
+                <p>Sign up at <strong>tokenfactory.nebius.com</strong> and create an API key. This key lets your agent call LLM inference on Nebius GPUs — no need to run your own model.</p>
+                <ul class="gs-bullets">
+                  <li>Token Factory provides access to Llama, DeepSeek, Qwen, and more</li>
+                  <li>Keys start with <code>v1.</code> — you'll paste it during deployment</li>
+                  <li>GPU endpoints run models locally and don't need a key</li>
+                </ul>
+                <a class="btn btn-primary btn-sm gs-action" href="https://tokenfactory.nebius.com" target="_blank" rel="noopener">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  Get API Key
+                </a>
+              </div>
+            </div>
+
+            <div class="gs-connector"></div>
+
+            <div class="gs-step">
+              <div class="gs-step-num">2</div>
+              <div class="gs-step-body">
+                <h3>Deploy an endpoint</h3>
+                <p>Go to <strong>Quick Start</strong> and work through the steps: pick your agent image, choose a model, select a region, and choose a platform. For GPU workloads no API key is required. Hit <strong>Deploy</strong> — the endpoint spins up in about a minute.</p>
+                <ul class="gs-bullets">
+                  <li>GPU — dedicated H200 VM, model runs locally, no API key needed</li>
+                  <li>CPU Only — serverless, fastest cold start, uses Token Factory</li>
+                  <li>Custom — choose exact vCPUs, RAM, and GPU model</li>
+                </ul>
+                <button class="btn btn-primary btn-sm gs-action" onclick="switchPage('deploy')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                  Go to Quick Start
+                </button>
+              </div>
+            </div>
+
+            <div class="gs-connector"></div>
+
+            <div class="gs-step">
+              <div class="gs-step-num">3</div>
+              <div class="gs-step-body">
+                <h3>Connect to your agent</h3>
+                <p>Open <strong>Endpoints</strong> to see your running endpoints. Each active endpoint has two ways to connect:</p>
+                <ul class="gs-bullets">
+                  <li><strong>Terminal</strong> — opens a live SSH shell directly in the browser. Use it to inspect logs, run commands, or debug your agent.</li>
+                  <li><strong>Dashboard</strong> — opens the agent's web UI in a new tab (proxied through this server). Use it to interact with your agent, test prompts, and monitor activity.</li>
+                </ul>
+                <p class="gs-note">Endpoints that show <em>inactive</em> can be started from the action menu on the right.</p>
+                <button class="btn btn-primary btn-sm gs-action" onclick="switchPage('endpoints')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                  Go to Endpoints
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Deploy Page -->
+        <div id="page-deploy" class="page hidden">
+          <div class="page-header">
+            <h2>Quick Start</h2>
+            <p class="page-desc">Choose an agent, region, and deploy to Nebius Cloud</p>
+          </div>
+
+          <div class="page-body">
+            <!-- Summary Mode (default) -->
+            <div id="deploy-summary">
+              <div id="summary-grid" class="summary-grid"></div>
+              <button class="btn btn-customize btn-sm" id="customize-btn" onclick="toggleCustomize()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                Customize
+              </button>
+            </div>
+
+            <!-- Steps (hidden by default, shown on Customize) -->
+            <div id="deploy-steps" class="hidden">
+            <!-- Step 1: Choose Image -->
+            <section class="step">
+              <div class="step-header">
+                <span class="step-num">1</span>
+                <h3>Choose Agent</h3>
+              </div>
+              <div class="card-grid" id="image-cards"></div>
+
+              <!-- Custom image input (shown when Custom is selected) -->
+              <div id="custom-image-input" class="custom-input hidden">
+                <div id="registry-image-picker" class="registry-image-picker">
+                  <label>Select from your registries</label>
+                  <div id="registry-image-list" class="registry-image-list">
+                    <div class="mb-loading"><span class="spinner"></span> Loading registry images...</div>
+                  </div>
+                </div>
+                <div class="custom-url-divider"><span>or enter a custom URL</span></div>
+                <input type="text" id="custom-image-url" placeholder="e.g. docker.io/myuser/myagent:latest" />
+              </div>
+            </section>
+
+            <!-- Step 2: Choose Model -->
+            <section class="step">
+              <div class="step-header">
+                <span class="step-num">2</span>
+                <h3>Choose Model</h3>
+              </div>
+              <div class="card-grid" id="model-cards"></div>
+
+              <!-- Model picker (shown when "Other" is selected) -->
+              <div id="model-picker" class="model-picker hidden">
+                <label>Select a model from Token Factory</label>
+                <div id="model-picker-list" class="model-picker-list">
+                  <div class="mb-loading"><span class="spinner"></span> Loading models...</div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Step 3: Choose Region -->
+            <section class="step">
+              <div class="step-header">
+                <span class="step-num">3</span>
+                <h3>Choose Region</h3>
+              </div>
+              <div class="card-grid" id="region-cards"></div>
+            </section>
+
+            <!-- Step 4: Choose Platform -->
+            <section class="step">
+              <div class="step-header">
+                <span class="step-num">4</span>
+                <h3>Choose Platform</h3>
+              </div>
+              <div class="card-grid" id="platform-cards"></div>
+              <div id="custom-platform-picker" class="custom-platform-picker hidden">
+                <select id="custom-platform-select" class="form-select" onchange="selectCustomPlatformPreset(this.value)">
+                  <option value="">Loading platforms...</option>
+                </select>
+              </div>
+            </section>
+
+            <!-- Step 5: Network -->
+            <section class="step">
+              <div class="step-header">
+                <span class="step-num">5</span>
+                <h3>Network</h3>
+              </div>
+              <div class="card-grid" id="network-cards">
+                <div class="select-card" data-network="public" onclick="selectNetwork('public')">
+                  <div class="card-icon">🌐</div>
+                  <div class="card-title">Public IP</div>
+                  <div class="card-desc">Accessible from the internet</div>
+                </div>
+                <div class="select-card selected" data-network="private" onclick="selectNetwork('private')">
+                  <div class="card-icon">🔒</div>
+                  <div class="card-title">Private IP</div>
+                  <div class="card-desc">Internal network only</div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Step 6: Choose Provider (hidden for GPU platforms) -->
+            <section class="step" id="provider-step">
+              <div class="step-header">
+                <span class="step-num">6</span>
+                <h3>Choose API Provider</h3>
+              </div>
+              <div class="card-grid" id="provider-cards"></div>
+              <p class="step-hint">All providers route inference through <strong>Nebius</strong> GPUs</p>
+            </section>
+            </div><!-- end deploy-steps -->
+
+            <!-- Configure (always visible) -->
+            <section class="step">
+              <div class="step-header">
+                <h3>Configure</h3>
+              </div>
+              <div class="config-form">
+                <div class="form-group">
+                  <label>Endpoint Name</label>
+                  <input type="text" id="endpoint-name" placeholder="my-agent (auto-generated if empty)" />
+                </div>
+
+                <!-- API Key (Token Factory) -->
+                <div class="form-group" id="api-key-group-tf">
+                  <label>Token Factory API Key</label>
+                  <div class="api-key-row">
+                    <input type="password" id="tf-api-key" placeholder="v1.xxx..." />
+                    <button class="btn btn-sm btn-save-secret" onclick="saveToMysteryBox('tf')" title="Save to MysteryBox">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="12" y1="15" x2="12" y2="18"/></svg>
+                      Save
+                    </button>
+                  </div>
+                  <div id="mb-secrets-tf" class="mb-secrets-list"></div>
+                  <span class="form-hint">Paste a key, select from <a href="https://console.nebius.com/mysterybox" target="_blank">MysteryBox</a>, or save a new one</span>
+                </div>
+
+                <!-- API Key (OpenRouter) -->
+                <div class="form-group hidden" id="api-key-group-openrouter">
+                  <label>OpenRouter API Key</label>
+                  <div class="api-key-row">
+                    <input type="password" id="openrouter-api-key" placeholder="sk-or-v1-xxx..." />
+                    <button class="btn btn-sm btn-save-secret" onclick="saveToMysteryBox('openrouter')" title="Save to MysteryBox">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="12" y1="15" x2="12" y2="18"/></svg>
+                      Save
+                    </button>
+                  </div>
+                  <div id="mb-secrets-openrouter" class="mb-secrets-list"></div>
+                  <span class="form-hint">Get a key from <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a></span>
+                </div>
+
+                <!-- API Key (HuggingFace) -->
+                <div class="form-group hidden" id="api-key-group-huggingface">
+                  <label>HuggingFace API Key</label>
+                  <div class="api-key-row">
+                    <input type="password" id="huggingface-api-key" placeholder="hf_xxx..." />
+                    <button class="btn btn-sm btn-save-secret" onclick="saveToMysteryBox('huggingface')" title="Save to MysteryBox">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="12" y1="15" x2="12" y2="18"/></svg>
+                      Save
+                    </button>
+                  </div>
+                  <div id="mb-secrets-huggingface" class="mb-secrets-list"></div>
+                  <span class="form-hint">Get a key from <a href="https://huggingface.co/settings/tokens" target="_blank">huggingface.co/settings/tokens</a> · Provider: Nebius</span>
+                </div>
+              </div>
+            </section>
+
+            <!-- Deploy Button -->
+            <section class="deploy-section">
+              <button id="deploy-btn" class="btn btn-deploy btn-lg" onclick="deploy()" disabled>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Deploy
+              </button>
+              <div id="deploy-status" class="deploy-status hidden"></div>
+            </section>
+          </div>
+        </div>
+
+        <!-- Endpoints Page -->
+        <div id="page-endpoints" class="page">
+          <div class="page-header-top">
+            <h2>Endpoints</h2>
+            <div class="page-header-actions">
+              <button class="btn-icon-only" onclick="loadEndpoints()" title="Refresh">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              </button>
+              <button class="btn btn-primary btn-sm" onclick="switchPage('deploy')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Create endpoint
+              </button>
+            </div>
+          </div>
+
+          <div class="page-header-toolbar">
+            <div class="search-bar">
+              <span class="search-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              </span>
+              <input type="text" id="endpoint-search" placeholder="Search endpoints..." />
+            </div>
+            <div class="filter-tabs" id="endpoint-filters">
+              <button class="filter-tab active" data-filter="all">All</button>
+              <button class="filter-tab" data-filter="active">Active</button>
+              <button class="filter-tab" data-filter="inactive">Inactive</button>
+            </div>
+          </div>
+
+          <div class="endpoints-table-header">
+            <span>Name</span>
+            <span>Status</span>
+            <span>Created</span>
+            <span></span>
+          </div>
+
+          <div id="endpoints-list" class="endpoints-list">
+            <p class="empty-state">No endpoints found</p>
+          </div>
+
+          <div class="endpoints-footer">
+            <button class="btn btn-create-endpoint" onclick="switchPage('deploy')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Create Endpoint
+            </button>
+          </div>
+        </div>
+
+        <!-- Registry Page -->
+        <div id="page-registry" class="page hidden">
+          <div class="page-header-top">
+            <h2>Docker Registry</h2>
+            <div class="page-header-actions">
+              <button class="btn btn-icon" onclick="loadRegistries()" title="Refresh">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              </button>
+              <button class="btn btn-create-endpoint" onclick="showBuildDialog()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Build Image
+              </button>
+            </div>
+          </div>
+
+          <!-- Build Dialog -->
+          <div id="build-dialog" class="build-dialog hidden">
+            <div class="build-dialog-header">
+              <h3>Build Docker Image</h3>
+              <button class="btn btn-ghost btn-sm" onclick="hideBuildDialog()">Cancel</button>
+            </div>
+            <div class="build-form">
+              <div class="form-group">
+                <label>Image Type</label>
+                <div class="build-type-cards">
+                  <button class="select-card selected" data-build-type="openclaw" onclick="selectBuildType(this)">
+                    <span class="card-icon">&#x1F99E;</span>
+                    <span class="card-title">OpenClaw</span>
+                  </button>
+                  <button class="select-card" data-build-type="nemoclaw" onclick="selectBuildType(this)">
+                    <span class="card-icon">&#x1F531;</span>
+                    <span class="card-title">NemoClaw</span>
+                  </button>
+                  <button class="select-card" data-build-type="custom" onclick="selectBuildType(this)">
+                    <span class="card-icon">&#x2699;</span>
+                    <span class="card-title">Custom</span>
+                  </button>
+                </div>
+              </div>
+              <div id="custom-repo-group" class="form-group hidden">
+                <label>GitHub Repository URL</label>
+                <input id="custom-repo-url" type="text" class="form-input" placeholder="https://github.com/user/repo" />
+                <small style="color:var(--text-muted);margin-top:4px;display:block">Enter a public GitHub repo containing a Dockerfile</small>
+              </div>
+              <div id="build-source-viewer" class="form-group hidden">
+                <details>
+                  <summary style="font-size:12px;color:var(--text-muted);cursor:pointer">Dockerfile</summary>
+                  <pre id="build-source-code" style="background:var(--bg-inset);border:1px solid var(--border-color);border-radius:6px;padding:12px;font-size:11px;line-height:1.5;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;color:var(--text-secondary);margin:4px 0 0"></pre>
+                  <details style="margin-top:6px">
+                    <summary style="font-size:11px;color:var(--text-muted);cursor:pointer">Entrypoint script</summary>
+                    <pre id="build-source-entrypoint" style="background:var(--bg-inset);border:1px solid var(--border-color);border-radius:6px;padding:12px;font-size:11px;line-height:1.5;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;color:var(--text-secondary);margin-top:4px"></pre>
+                  </details>
+                </details>
+              </div>
+              <div class="form-group">
+                <label>Target Region</label>
+                <select id="build-region" class="form-select"></select>
+              </div>
+              <button id="build-btn" class="btn btn-deploy btn-lg" onclick="startBuild()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12H2"/><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
+                Build &amp; Push
+              </button>
+            </div>
+            <div id="build-log" class="build-log hidden">
+              <pre id="build-log-content"></pre>
+            </div>
+          </div>
+
+          <div id="registries-list" class="registries-list">
+            <p class="empty-state">Loading registries...</p>
+          </div>
+        </div>
+      </div>  <!-- end content-area -->
+    </div>  <!-- end main-app -->
+
+    <!-- Bottom Dock (mobile only) -->
+    <nav id="bottom-dock" class="bottom-dock hidden">
+      <button class="dock-item" data-page="start" onclick="switchPage('start')">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>Start</span>
+      </button>
+      <button class="dock-item" data-page="chat" onclick="switchPage('chat')">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>Chat</span>
+      </button>
+      <button class="dock-item" data-page="deploy" onclick="switchPage('deploy')">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <span>Quick Start</span>
+      </button>
+      <button class="dock-item active" data-page="endpoints" onclick="switchPage('endpoints')">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <span>Endpoints</span>
+        <span id="dock-endpoints-count" class="dock-badge hidden">0</span>
+      </button>
+      <button class="dock-item" data-page="registry" onclick="switchPage('registry')">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12H2"/><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></svg>
+        <span>Registry</span>
+      </button>
+    </nav>
+
+    <!-- Terminal Panel (slides up from bottom) -->
+    <div id="terminal-panel" class="terminal-panel hidden">
+      <div class="terminal-header">
+        <div class="terminal-header-left">
+          <span class="terminal-icon">></span>
+          <span id="terminal-title">Terminal</span>
+          <span id="terminal-status" class="terminal-status">connecting...</span>
+        </div>
+        <div class="terminal-header-right">
+          <button id="term-fullscreen-btn" class="btn btn-ghost btn-sm" onclick="toggleTerminalFullscreen()" title="Fullscreen">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          </button>
+          <button id="term-exit-fs-btn" class="btn btn-ghost btn-sm hidden" onclick="toggleTerminalFullscreen()" title="Exit Fullscreen">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="openTerminalNewWindow()" title="Open in new window">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="reconnectTerminal()">Reconnect</button>
+          <button class="btn btn-ghost btn-sm" onclick="closeTerminal()">Close</button>
+        </div>
+      </div>
+      <div id="terminal-container"></div>
+    </div>
+
+    <!-- Logs Panel (overlay) -->
+    <div id="logs-panel" class="logs-panel hidden">
+      <div class="logs-header">
+        <div class="logs-header-left">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <span id="logs-title">Logs</span>
+        </div>
+        <div class="logs-header-right">
+          <button class="btn btn-ghost btn-sm" onclick="closeLogs()">Close</button>
+        </div>
+      </div>
+      <div id="logs-terminal"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.min.js"></script>
+  <script src="app.js"></script>
+  <script src="chatbot.js"></script>
+</body>
+</html>
