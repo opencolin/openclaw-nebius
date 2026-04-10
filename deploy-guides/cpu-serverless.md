@@ -1,10 +1,8 @@
-# Path 4: Nebius CPU Serverless + Token Factory
+# CPU Serverless + Token Factory
 
 *Production-ready. Always-on. The best of both worlds.*
 
 ## Overview
-
-Deploy OpenClaw on a Nebius CPU serverless endpoint with [Token Factory](https://tokenfactory.nebius.com) handling inference. You get a production-grade always-on agent with elastic cloud inference — the cheapest possible cloud footprint with the most capable models.
 
 | | |
 |---|---|
@@ -13,13 +11,7 @@ Deploy OpenClaw on a Nebius CPU serverless endpoint with [Token Factory](https:/
 | **Time to deploy** | ~3 minutes |
 | **Cost** | Per-second compute + per-token inference |
 
-## Why this approach?
-
-- **Always-on** — public IP, health monitoring, accessible 24/7
-- **No GPU management** — Token Factory handles model loading, scaling, and hardware
-- **Cheapest cloud option** — smallest CPU instance + pay-per-token inference
-- **Start/stop lifecycle** — pause billing when you don't need the agent
-- **Managed infrastructure** — Nebius handles provisioning, networking, and health checks
+Deploy OpenClaw on a Nebius CPU serverless endpoint with [Token Factory](https://tokenfactory.nebius.com) handling inference. A production-grade always-on agent with elastic cloud inference -- the cheapest cloud footprint with the most capable models.
 
 ## Prerequisites
 
@@ -27,9 +19,9 @@ Deploy OpenClaw on a Nebius CPU serverless endpoint with [Token Factory](https:/
 - [Token Factory](https://tokenfactory.nebius.com) API key
 - [Nebius CLI](https://docs.nebius.com/cli/install) installed and logged in
 
-## Deploy methods
+## Steps
 
-### Method 1: One-command script
+### 1. One-command script
 
 ```bash
 export TOKEN_FACTORY_API_KEY={your-token-factory-key}
@@ -38,9 +30,9 @@ export TOKEN_FACTORY_API_KEY={your-token-factory-key}
 
 The script handles everything: registry creation, Docker build, push, and endpoint deployment.
 
-### Method 2: Nebius console UI
+### 2. Or deploy via the Nebius console
 
-Navigate to **Serverless AI → Create endpoint** and configure:
+Navigate to **Serverless AI -> Create endpoint** and configure:
 
 | Field | Value |
 |-------|-------|
@@ -54,7 +46,7 @@ Navigate to **Serverless AI → Create endpoint** and configure:
 | **OPENCLAW_WEB_PASSWORD** | `{your-password}` |
 | **Public IP** | Enabled |
 
-### Method 3: CLI with pre-built image
+### 3. Or deploy via CLI
 
 ```bash
 nebius ai endpoint create \
@@ -73,26 +65,24 @@ nebius ai endpoint create \
   --ssh-key "$(cat ~/.ssh/id_ed25519.pub)"
 ```
 
-### Method 4: Deploy UI
+### 4. Or use the Deploy UI
 
-Run the [Deploy UI](../deploy-ui/web/) locally or on a VM for a visual deployment experience with MysteryBox secrets integration, endpoint monitoring, and multi-region support.
+Run the [Deploy UI](../deploy-ui/web/) locally for a visual experience with MysteryBox secrets integration, endpoint monitoring, and multi-region support.
 
 ```bash
-cd web && npm install && npm start
+cd deploy-ui/web && npm install && npm start
 # Open http://localhost:3000
 ```
 
-## Connect to your agent
+## Connect
 
 ```bash
 # SSH tunnel for secure WebSocket access
 ssh -f -N -L 28789:<endpoint-ip>:18789 nebius@<endpoint-ip>
-
-# Connect via TUI
-openclaw tui --url ws://localhost:28789 --token {your-password}
 ```
 
-- **Dashboard:** `http://<endpoint-ip>:18789/#token={your-password}`
+- **Dashboard:** `http://localhost:28789/#token={your-password}&gatewayUrl=ws://localhost:28789`
+- **TUI:** `openclaw tui --url ws://localhost:28789 --token {your-password}`
 - **Health check:** `curl http://<endpoint-ip>:8080`
 
 ## Region and platform mapping
@@ -118,7 +108,7 @@ nebius mysterybox secret create \
 
 - Production agents that need to be accessible 24/7
 - You want the cheapest cloud deployment with no GPU overhead
-- Elastic inference — Token Factory scales across its GPU fleet
+- Elastic inference -- Token Factory scales across its GPU fleet
 - Managed start/stop lifecycle for cost control
 
 ## Next steps

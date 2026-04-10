@@ -1,10 +1,8 @@
-# Path 2: Docker + Token Factory
+# Docker + Token Factory
 
 *Portable. Reproducible. Run OpenClaw anywhere in a container.*
 
 ## Overview
-
-Run OpenClaw in Docker on any machine — laptop, VPS, Raspberry Pi, anything with a CPU. All inference is handled by [Token Factory](https://tokenfactory.nebius.com), so you don't need a GPU. The container packages everything into a single reproducible image.
 
 | | |
 |---|---|
@@ -13,13 +11,16 @@ Run OpenClaw in Docker on any machine — laptop, VPS, Raspberry Pi, anything wi
 | **Time to deploy** | ~2 minutes |
 | **Cost** | Token Factory per-token only |
 
+Run OpenClaw in Docker on any machine -- laptop, VPS, home server. All inference is handled by [Token Factory](https://tokenfactory.nebius.com), so you don't need a GPU.
+
+## Prerequisites
+
+- Docker installed
+- A Token Factory API key from [tokenfactory.nebius.com](https://tokenfactory.nebius.com)
+
 ## Steps
 
-### 1. Get a Token Factory API key
-
-Sign up at [tokenfactory.nebius.com](https://tokenfactory.nebius.com) and create an API key.
-
-### 2. Run the container
+### 1. Run the container
 
 ```bash
 docker run -d \
@@ -31,14 +32,14 @@ docker run -d \
   ghcr.io/opencolin/openclaw-serverless:latest
 ```
 
-### 3. Verify
+### 2. Verify
 
 ```bash
 curl http://localhost:8080
 # {"status":"healthy","service":"openclaw-serverless","model":"zai-org/GLM-5",...}
 ```
 
-### 4. Connect
+## Connect
 
 - **Dashboard:** `http://localhost:18789/#token={your-password}`
 - **TUI:** `openclaw tui --url ws://localhost:18789 --token {your-password}`
@@ -47,8 +48,8 @@ curl http://localhost:8080
 
 | Model ID | Description |
 |----------|-------------|
-| `zai-org/GLM-5` | Latest GLM from Zhipu AI — strong general-purpose reasoning |
-| `deepseek-ai/DeepSeek-R1-0528` | DeepSeek reasoning model — complex tasks |
+| `zai-org/GLM-5` | Latest GLM from Zhipu AI -- strong general-purpose reasoning |
+| `deepseek-ai/DeepSeek-R1-0528` | DeepSeek reasoning model -- complex tasks |
 | `MiniMaxAI/MiniMax-M2.5` | Fast, powerful open-source model |
 
 > **Model ID format matters.** Use Token Factory IDs (e.g., `zai-org/GLM-5`), not HuggingFace IDs. Wrong format = silent 404 errors.
@@ -69,5 +70,5 @@ curl http://localhost:8080
 
 ## Next steps
 
-- [Path 3: Nebius GPU Serverless](path3-gpu-serverless.md) — self-contained with a local model
-- [Path 4: Nebius CPU Serverless + Token Factory](path4-cpu-serverless.md) — production cloud deployment
+- [GPU Serverless](gpu-serverless.md) -- self-contained with a local model
+- [CPU Serverless](cpu-serverless.md) -- production cloud deployment

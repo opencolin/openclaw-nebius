@@ -1,10 +1,8 @@
-# Path 1: Install OpenClaw Locally + Token Factory
+# Local Install + Token Factory
 
 *Fastest to start. No Docker, no cloud. Just npm and a Token Factory key.*
 
 ## Overview
-
-Install OpenClaw directly on your machine and connect it to [Token Factory](https://tokenfactory.nebius.com) for inference. This is the quickest way to get an agent running — no containers, no cloud accounts, no infrastructure.
 
 | | |
 |---|---|
@@ -13,19 +11,22 @@ Install OpenClaw directly on your machine and connect it to [Token Factory](http
 | **Time to deploy** | ~30 seconds |
 | **Cost** | Token Factory per-token only |
 
+Install OpenClaw directly on your machine and connect it to [Token Factory](https://tokenfactory.nebius.com) for inference. No containers, no cloud accounts, no infrastructure.
+
+## Prerequisites
+
+- Node.js 18+
+- A Token Factory API key from [tokenfactory.nebius.com](https://tokenfactory.nebius.com)
+
 ## Steps
 
-### 1. Get a Token Factory API key
-
-Sign up at [tokenfactory.nebius.com](https://tokenfactory.nebius.com) and create an API key.
-
-### 2. Install OpenClaw
+### 1. Install OpenClaw
 
 ```bash
 npm install -g openclaw
 ```
 
-### 3. Initialize and start
+### 2. Initialize and start
 
 ```bash
 export TOKEN_FACTORY_API_KEY={your-token-factory-key}
@@ -37,7 +38,7 @@ openclaw init
 openclaw gateway --bind loopback --auth token --token $OPENCLAW_GATEWAY_TOKEN
 ```
 
-### 4. Connect
+## Connect
 
 - **Dashboard:** `http://localhost:18789/#token={your-password}`
 - **TUI:** `openclaw tui --url ws://localhost:18789 --token {your-password}`
@@ -50,6 +51,6 @@ openclaw gateway --bind loopback --auth token --token $OPENCLAW_GATEWAY_TOKEN
 
 ## Next steps
 
-- [Path 2: Docker + Token Factory](path2-docker.md) — make it portable
-- [Path 3: Nebius GPU Serverless](path3-gpu-serverless.md) — self-contained with a local model
-- [Path 4: Nebius CPU Serverless + Token Factory](path4-cpu-serverless.md) — production cloud deployment
+- [Docker](docker.md) -- make it portable
+- [GPU Serverless](gpu-serverless.md) -- self-contained with a local model
+- [CPU Serverless](cpu-serverless.md) -- production cloud deployment

@@ -1,10 +1,8 @@
-# Path 3: Nebius GPU Serverless + Local Model
+# GPU Serverless + Local Model
 
 *Self-contained. Private. Predictable cost.*
 
 ## Overview
-
-Deploy [NemoClaw](https://github.com/NVIDIA/NemoClaw) (NVIDIA's OpenClaw plugin) with a local LLM running on a cloud-hosted GPU. Everything runs in one container — no external API calls. The serverless endpoint auto-pauses when idle, so you only pay for active time.
 
 | | |
 |---|---|
@@ -13,27 +11,22 @@ Deploy [NemoClaw](https://github.com/NVIDIA/NemoClaw) (NVIDIA's OpenClaw plugin)
 | **Time to deploy** | ~5 minutes |
 | **Cost** | Predictable hourly rate, auto-pauses when idle |
 
-## Why GPU serverless?
-
-- **Custom models** — run your own fine-tuned LLM
-- **Data privacy** — all inference stays inside your container, no external API calls
-- **Predictable cost** — fixed hourly rate instead of per-token pricing
-- **Auto-pause** — endpoint stops billing when idle, restarts on demand
-
-## NemoClaw vs OpenClaw
-
-NemoClaw is not a competing project — it **wraps** OpenClaw and adds NVIDIA-specific capabilities: sandbox execution, enhanced agent planning, and optimized GPU inference. If you're deploying on NVIDIA GPUs with a local model, NemoClaw is the right choice.
+Deploy [NemoClaw](https://github.com/NVIDIA/NemoClaw) (NVIDIA's OpenClaw plugin) with a local LLM running on a cloud-hosted GPU. Everything runs in one container -- no external API calls. The serverless endpoint auto-pauses when idle, so you only pay for active time.
 
 ## Prerequisites
 
 - [Nebius AI Cloud](https://console.nebius.com) account
 - [Nebius CLI](https://docs.nebius.com/cli/install) installed and logged in
 
+## NemoClaw vs OpenClaw
+
+NemoClaw is not a competing project -- it **wraps** OpenClaw and adds NVIDIA-specific capabilities: sandbox execution, enhanced agent planning, and optimized GPU inference. If you're deploying on NVIDIA GPUs with a local model, NemoClaw is the right choice.
+
 ## Steps
 
 ### 1. Deploy via the Nebius console
 
-Navigate to **Serverless AI → Create endpoint** and configure:
+Navigate to **Serverless AI -> Create endpoint** and configure:
 
 | Field | Value |
 |-------|-------|
@@ -62,17 +55,15 @@ nebius ai endpoint create \
   --ssh-key "$(cat ~/.ssh/id_ed25519.pub)"
 ```
 
-### 3. Connect
+## Connect
 
 ```bash
 # SSH tunnel for secure access
 ssh -f -N -L 28789:<endpoint-ip>:18789 nebius@<endpoint-ip>
-
-# Connect via TUI
-openclaw tui --url ws://localhost:28789 --token {your-password}
 ```
 
-- **Dashboard:** `http://<endpoint-ip>:18789/#token={your-password}`
+- **Dashboard:** `http://localhost:28789/#token={your-password}&gatewayUrl=ws://localhost:28789`
+- **TUI:** `openclaw tui --url ws://localhost:28789 --token {your-password}`
 
 ## When to use this
 
@@ -83,4 +74,5 @@ openclaw tui --url ws://localhost:28789 --token {your-password}
 
 ## Next steps
 
-- [Path 4: Nebius CPU Serverless + Token Factory](path4-cpu-serverless.md) — hybrid cloud approach
+- [CPU Serverless](cpu-serverless.md) -- hybrid cloud approach with Token Factory
+- [Local Install](local-install.md) -- try it locally first
