@@ -20,7 +20,7 @@ Pick the path that matches what you want to do:
 Install the provider plugin to get 44+ models:
 
 ```bash
-openclaw plugins install clawhub:@colygon/openclaw-nebius
+openclaw plugins install clawhub:@opencolin/openclaw-nebius
 ```
 
 Then follow the [plugin setup guide](tokenfactory-plugin/SETUP.md) to configure your API key.
@@ -36,7 +36,7 @@ For self-hosting the deploy UI, see [deploy-ui](deploy-ui).
 Install the Nebius skill for Claude Code:
 
 ```bash
-git clone https://github.com/colygon/openclaw-nebius.git /tmp/openclaw-nebius
+git clone https://github.com/opencolin/openclaw-nebius.git /tmp/openclaw-nebius
 cp -r /tmp/openclaw-nebius/nebius-skill ~/.claude/skills/nebius
 ```
 
@@ -88,8 +88,8 @@ Get your key at [studio.nebius.ai](https://studio.nebius.ai/). Keys look like `v
 ### Pre-built Docker Images
 
 ```bash
-docker pull ghcr.io/colygon/openclaw-serverless:latest   # ~400 MB, CPU
-docker pull ghcr.io/colygon/nemoclaw-serverless:latest   # ~1.1 GB, GPU-ready
+docker pull ghcr.io/opencolin/openclaw-serverless:latest   # ~400 MB, CPU
+docker pull ghcr.io/opencolin/nemoclaw-serverless:latest   # ~1.1 GB, GPU-ready
 ```
 
 ## Development

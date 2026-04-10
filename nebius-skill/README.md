@@ -28,15 +28,15 @@ Invoke with `/nebius` in Claude Code, or let it auto-trigger when you mention Ne
 Clone into your personal skills directory:
 
 ```bash
-git clone https://github.com/colygon/openclaw-nebius.git /tmp/openclaw-nebius
-cp -r /tmp/openclaw-nebius/packages/nebius-skill ~/.claude/skills/nebius
+git clone https://github.com/opencolin/openclaw-nebius.git /tmp/openclaw-nebius
+cp -r /tmp/openclaw-nebius/nebius-skill ~/.claude/skills/nebius
 ```
 
 Or for project-level use:
 
 ```bash
-git clone https://github.com/colygon/openclaw-nebius.git /tmp/openclaw-nebius
-cp -r /tmp/openclaw-nebius/packages/nebius-skill .claude/skills/nebius
+git clone https://github.com/opencolin/openclaw-nebius.git /tmp/openclaw-nebius
+cp -r /tmp/openclaw-nebius/nebius-skill .claude/skills/nebius
 ```
 
 ### OpenClaw
@@ -44,8 +44,8 @@ cp -r /tmp/openclaw-nebius/packages/nebius-skill .claude/skills/nebius
 Clone into your workspace skills:
 
 ```bash
-git clone https://github.com/colygon/openclaw-nebius.git /tmp/openclaw-nebius
-cp -r /tmp/openclaw-nebius/packages/nebius-skill ~/.openclaw/workspace/skills/nebius
+git clone https://github.com/opencolin/openclaw-nebius.git /tmp/openclaw-nebius
+cp -r /tmp/openclaw-nebius/nebius-skill ~/.openclaw/workspace/skills/nebius
 ```
 
 ## Prerequisites

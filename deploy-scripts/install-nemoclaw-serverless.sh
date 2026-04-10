@@ -42,7 +42,7 @@
 #
 # Public Docker image (alternative to building):
 #   If you don't want to build locally, you can deploy the pre-built public image:
-#     ghcr.io/colygon/nemoclaw-serverless:latest
+#     ghcr.io/opencolin/nemoclaw-serverless:latest
 #
 # =============================================================================
 

@@ -2,7 +2,7 @@
 name: openclaw-nebius
 description: Nebius Token Factory provider plugin — adds 44+ open-source models (Qwen, DeepSeek, Llama, Gemma, GLM, FLUX, and more) to OpenClaw via a single OpenAI-compatible endpoint
 version: 1.2.2
-homepage: https://github.com/colygon/openclaw-nebius/tree/main/tokenfactory-plugin
+homepage: https://github.com/opencolin/openclaw-nebius/tree/main/tokenfactory-plugin
 metadata: {"openclaw":{"requires":{"env":["NEBIUS_API_KEY"]},"primaryEnv":"NEBIUS_API_KEY"}}
 env:
   - name: NEBIUS_API_KEY
@@ -19,7 +19,7 @@ Adds 44+ open-source models to OpenClaw via the Nebius Token Factory inference A
 Run this single command to install the plugin from ClawhHub:
 
 ```bash
-openclaw plugins install clawhub:@colygon/openclaw-nebius
+openclaw plugins install clawhub:@opencolin/openclaw-nebius
 ```
 
 Then configure the API key and restart the gateway. Full steps below.
@@ -29,14 +29,14 @@ Then configure the API key and restart the gateway. Full steps below.
 ### Step 1: Install the plugin
 
 ```bash
-openclaw plugins install clawhub:@colygon/openclaw-nebius
+openclaw plugins install clawhub:@opencolin/openclaw-nebius
 ```
 
 If reinstalling, remove the old version first:
 
 ```bash
 rm -rf ~/.openclaw/extensions/nebius
-openclaw plugins install clawhub:@colygon/openclaw-nebius
+openclaw plugins install clawhub:@opencolin/openclaw-nebius
 ```
 
 ### Step 2: Get an API key
@@ -132,7 +132,7 @@ See the full catalog in [SETUP.md](SETUP.md).
 ## Troubleshooting
 
 **"plugin not found: nebius"**
-- Run `openclaw plugins install clawhub:@colygon/openclaw-nebius`
+- Run `openclaw plugins install clawhub:@opencolin/openclaw-nebius`
 - If reinstalling: `rm -rf ~/.openclaw/extensions/nebius` first
 
 **401 Unauthorized**

@@ -388,8 +388,8 @@ const DEMO_ENDPOINTS = [
 // ── Image config ──────────────────────────────────────────────────────────
 // Public GHCR images (fallback if user's registry doesn't have the image)
 const GHCR_IMAGES = {
-  openclaw: 'ghcr.io/colygon/openclaw-serverless:latest',
-  nemoclaw: 'ghcr.io/colygon/nemoclaw-serverless:latest'
+  openclaw: 'ghcr.io/opencolin/openclaw-serverless:latest',
+  nemoclaw: 'ghcr.io/opencolin/nemoclaw-serverless:latest'
 };
 
 const IMAGES = {
@@ -1010,8 +1010,8 @@ app.get('/api/build/source/:type', requireAuth, (req, res) => {
     const entrypoint = entryMatch ? entryMatch[1] : null;
 
     const repo = type === 'nemoclaw'
-      ? 'https://github.com/colygon/openclaw-deploy'
-      : 'https://github.com/colygon/openclaw-deploy';
+      ? 'https://github.com/opencolin/openclaw-deploy'
+      : 'https://github.com/opencolin/openclaw-deploy';
 
     res.json({ dockerfile, entrypoint, scriptPath: `install-${type}-serverless.sh`, repo });
   } catch (e) {

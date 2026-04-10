@@ -25,7 +25,7 @@ VM_NAME="${VM_NAME:-openclaw-deploy-ui}"
 SSH_KEY_PATH="${SSH_KEY_PATH:-$HOME/.ssh/id_ed25519.pub}"
 SSH_PRIVATE_KEY="${SSH_PRIVATE_KEY:-${SSH_KEY_PATH%.pub}}"
 DEPLOY_UI_PORT=3000
-REPO_URL="https://github.com/colygon/openclaw-deploy.git"
+REPO_URL="https://github.com/opencolin/openclaw-deploy.git"
 
 # ── Colors ───────────────────────────────────────────────────────────────────
 info()  { printf '\033[1;34m>>>\033[0m %s\n' "$*"; }

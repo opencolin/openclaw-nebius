@@ -304,7 +304,7 @@ nebius compute instance create \
 ssh nebius@<VM_IP>
 
 # One-liner setup — installs Node.js, Nebius CLI, nginx (HTTPS), and starts the service
-curl -sSL https://raw.githubusercontent.com/colygon/openclaw-deploy/main/setup-deploy-vm.sh | bash
+curl -sSL https://raw.githubusercontent.com/opencolin/openclaw-deploy/main/setup-deploy-vm.sh | bash
 ```
 
 The script will:
