@@ -118,7 +118,7 @@ Token Factory URL: EU uses `https://api.tokenfactory.nebius.com/v1`, US uses `ht
 | Error | Fix |
 |---|---|
 | `nebius: command not found` | `curl -sSL https://storage.eu-north1.nebius.cloud/cli/install.sh \| bash && exec -l $SHELL` |
-| `UNAUTHENTICATED` (exit 7) | `nebius iam login` or check service account key |
+| `UNAUTHENTICATED` (exit 7) | Re-run `nebius profile create` (user auth) or check service account key |
 | `PERMISSION_DENIED` (exit 15) | User needs `editors` group membership |
 | `RESOURCE_EXHAUSTED` (exit 24) | Public IP quota — delete unused endpoints |
 | `NOT_ENOUGH_RESOURCES` (exit 25) | Try different region or smaller preset |

@@ -8,8 +8,8 @@ For first-time setup with a browser available:
 # Create profile (interactive — prompts for name, endpoint, auth)
 nebius profile create
 
-# Browser-based OAuth login (if token expired)
-nebius iam login
+# Re-authenticate (if token expired — reopens browser)
+nebius profile create
 
 # Verify authentication
 nebius iam whoami --format json
@@ -45,10 +45,10 @@ EOF
 Then authenticate once (requires browser the first time):
 
 ```bash
-nebius iam login
+nebius profile create
 ```
 
-After the first login, the token is cached in `~/.nebius/` and subsequent CLI calls work non-interactively until the token expires (12 hours).
+After the first authentication, the token is cached in `~/.nebius/` and subsequent CLI calls work non-interactively until the token expires (12 hours).
 
 ## Service Account Auth (Fully Automated)
 

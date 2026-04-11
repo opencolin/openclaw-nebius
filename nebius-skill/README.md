@@ -203,7 +203,7 @@ The SKILL.md uses a unified frontmatter that works with both platforms:
 | `nebius: command not found` | Run the install script and restart shell |
 | `nebius init` not found | Use `nebius profile create` — `init` does not exist |
 | Auth fails in CI/container | `nebius profile create` needs interactive terminal. Write `~/.nebius/config.yaml` directly, or use service account auth |
-| `UNAUTHENTICATED` error | Run `nebius iam login` to refresh token (expires after 12h) |
+| `UNAUTHENTICATED` error | Re-run `nebius profile create` to refresh token (expires after 12h) |
 | `PERMISSION_DENIED` | Add user/service account to `editors` group in Nebius console |
 | Wrong platform in region | `eu-west1` uses `cpu-d3`, not `cpu-e2`. Run `nebius compute platform list` |
 

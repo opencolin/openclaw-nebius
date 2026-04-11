@@ -250,7 +250,7 @@ node server.js
 - **In-browser terminal** — SSH into any running endpoint and interact with the OpenClaw TUI directly from the browser
 - **Dashboard access** — SSH tunnel to the OpenClaw web dashboard (port 18789) with one click
 - **Multi-region endpoint polling** — shows all running endpoints across all regions
-- **Nebius OAuth login** — authenticates via `nebius iam login` (browser-based)
+- **Nebius OAuth login** — authenticates via `nebius profile create` (browser-based)
 
 ### Architecture
 
@@ -338,7 +338,7 @@ sudo journalctl -u openclaw-deploy -f
 sudo systemctl restart openclaw-deploy
 
 # Re-authenticate with Nebius (if token expired)
-nebius iam login
+nebius profile create
 sudo systemctl restart openclaw-deploy
 ```
 

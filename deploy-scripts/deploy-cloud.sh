@@ -37,7 +37,7 @@ error() { printf '\033[1;31m✗\033[0m   %s\n' "$*"; exit 1; }
 info "Preflight checks..."
 
 command -v nebius &>/dev/null || error "Nebius CLI not installed. Run: curl -sSL https://storage.ai.nebius.cloud/nebius/install.sh | bash"
-nebius iam get-access-token >/dev/null 2>&1 || error "Not authenticated. Run: nebius iam login"
+nebius iam get-access-token >/dev/null 2>&1 || error "Not authenticated. Run: nebius profile create"
 ok "Nebius CLI authenticated"
 
 # SSH key

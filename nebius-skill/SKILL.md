@@ -78,10 +78,7 @@ nebius profile create
 #   - A browser window opens — log in with your Nebius account
 ```
 
-If your token expires later, re-authenticate with:
-```bash
-nebius iam login
-```
+If your token expires later, re-authenticate by re-running `nebius profile create` (reopens browser login).
 
 ### Step 3. Get your IAM access token
 
@@ -561,7 +558,7 @@ Token Factory is the default, but OpenRouter and HuggingFace also work (routed t
 | Problem | Solution |
 |---|---|
 | `nebius: command not found` | Install: `curl -sSL https://storage.eu-north1.nebius.cloud/cli/install.sh \| bash && exec -l $SHELL` |
-| `UNAUTHENTICATED` (exit code 7) | Run `nebius iam login` or check service account key |
+| `UNAUTHENTICATED` (exit code 7) | Re-run `nebius profile create` (user auth) or check service account key |
 | `PERMISSION_DENIED` (exit code 15) | Check IAM group membership. User needs `editors` group. |
 | `NOT_FOUND` (exit code 13) | Verify resource ID and that you're in the correct project/profile |
 | `RESOURCE_EXHAUSTED` / `QuotaFailure` (exit code 24) | Request quota increase in Nebius console |

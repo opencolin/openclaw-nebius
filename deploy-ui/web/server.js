@@ -265,7 +265,7 @@ const REGION_META = {
 function loadNebiusConfig() {
   const configPath = process.env.NEBIUS_CONFIG_PATH || path.join(process.env.HOME, '.nebius', 'config.yaml');
   if (!fs.existsSync(configPath)) {
-    eventLog.warn('SYSTEM', 'No Nebius CLI config found', { configPath, hint: 'Run: nebius iam login' });
+    eventLog.warn('SYSTEM', 'No Nebius CLI config found', { configPath, hint: 'Run: nebius profile create' });
     return { regions: {}, profiles: {}, tenantId: null };
   }
 
@@ -614,7 +614,7 @@ app.post('/api/auth/token', async (req, res) => {
     eventLog.error('AUTH', 'Token verification failed', { error: err.message });
     trackLogin(false);
     res.status(401).json({
-      error: 'Invalid token. Run "nebius iam login" first, then "nebius iam get-access-token".'
+      error: 'Invalid token. Run "nebius profile create" first, then "nebius iam get-access-token".'
     });
   }
 });

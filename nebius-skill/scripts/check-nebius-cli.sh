@@ -61,7 +61,7 @@ if command -v nebius &> /dev/null; then
         echo -e "${RED}[FAIL]${NC} Not authenticated"
         if [ "$INTERACTIVE" = true ]; then
             echo "  Run: nebius profile create  (interactive setup)"
-            echo "  Or:  nebius iam login       (if profile exists)"
+            echo "  Or:  nebius profile create   (re-authenticate)"
         else
             echo "  For CI/CD, use service account auth:"
             echo "    1. Create service account: nebius iam service-account create"

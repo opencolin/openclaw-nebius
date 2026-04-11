@@ -61,7 +61,7 @@ except: print('Nebius User')
   info "Authenticated as: $USER_NAME"
 else
   warn "Nebius CLI not authenticated. Opening browser login..."
-  nebius iam login
+  nebius profile create
   info "Authentication complete"
 fi
 

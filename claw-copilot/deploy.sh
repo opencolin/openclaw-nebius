@@ -64,7 +64,7 @@ info "Preflight checks..."
 [ -z "${TOKEN_FACTORY_API_KEY:-}" ] && error "Set TOKEN_FACTORY_API_KEY env var. Get one at https://studio.nebius.ai/"
 command -v nebius &>/dev/null || error "Nebius CLI not installed. Run: curl -sSL https://storage.eu-north1.nebius.cloud/cli/install.sh | bash"
 command -v docker &>/dev/null || error "Docker not installed."
-nebius iam get-access-token >/dev/null 2>&1 || error "Not authenticated. Run: nebius iam login"
+nebius iam get-access-token >/dev/null 2>&1 || error "Not authenticated. Run: nebius profile create"
 ok "Authenticated"
 
 # Auto-detect project ID

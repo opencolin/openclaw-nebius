@@ -86,7 +86,7 @@ command -v docker &>/dev/null || error "Docker not installed."
 
 # Verify Nebius CLI authentication — this will fail if the token expired
 # or if the user hasn't logged in yet.
-nebius iam get-access-token >/dev/null 2>&1 || error "Not authenticated. Run: nebius iam login"
+nebius iam get-access-token >/dev/null 2>&1 || error "Not authenticated. Run: nebius profile create"
 ok "Authenticated"
 
 # Auto-detect project ID from the first project in the user's account.
