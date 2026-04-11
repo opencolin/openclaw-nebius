@@ -395,7 +395,7 @@ const GHCR_IMAGES = {
 const IMAGES = {
   'openclaw': {
     name: 'OpenClaw',
-    description: 'Lightweight AI agent — OpenClaw only',
+    description: 'Lightweight gateway — OpenClaw only',
     icon: '🦞',
     getImage: (registryId, region) =>
       registryId
@@ -404,7 +404,7 @@ const IMAGES = {
   },
   'nemoclaw': {
     name: 'NemoClaw',
-    description: 'Full agent — OpenClaw + NVIDIA NemoClaw plugin',
+    description: 'Full gateway — OpenClaw + NVIDIA NemoClaw plugin',
     icon: '🔱',
     getImage: (registryId, region) =>
       registryId

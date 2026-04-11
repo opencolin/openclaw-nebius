@@ -38,8 +38,8 @@ function initChat() {
   setInputMode(false);
 
   (async () => {
-    await botMsg("Hey! I'll walk you through deploying an AI agent on Nebius Cloud 🦞\n\nTap an option or type its number at each step.\n\nFirst up — which agent image? Each one comes pre-configured with different tools and capabilities.");
-    await loadAndShowAgents();
+    await botMsg("Hey! I'll walk you through deploying a gateway on Nebius Cloud 🦞\n\nTap an option or type its number at each step.\n\nFirst up — which gateway image? Each one comes pre-configured with different tools and capabilities.");
+    await loadAndShowGateways();
   })();
 }
 
@@ -142,7 +142,7 @@ function scrollChat() {
 
 // ── State machine ──────────────────────────────────────────────────────────
 
-async function loadAndShowAgents() {
+async function loadAndShowGateways() {
   let imageOptions;
   try {
     const res = await authFetch('/api/images');
@@ -153,22 +153,22 @@ async function loadAndShowAgents() {
     }));
   } catch (_) {
     imageOptions = [
-      { num: 1, id: 'openclaw', label: '🦞 OpenClaw', desc: 'General-purpose agent — serverless CPU' },
-      { num: 2, id: 'nemoclaw', label: '🔱 NemoClaw', desc: 'GPU-accelerated agent — H200 VM' },
+      { num: 1, id: 'openclaw', label: '🦞 OpenClaw', desc: 'General-purpose gateway — serverless CPU' },
+      { num: 2, id: 'nemoclaw', label: '🔱 NemoClaw', desc: 'GPU-accelerated gateway — H200 VM' },
       { num: 3, id: 'custom',   label: '📦 Custom',   desc: 'Use your own Docker image URL' },
     ];
   }
-  cs.step = 'agent';
+  cs.step = 'gateway';
   showOptions(imageOptions, async (opt) => {
     userMsg(`${opt.num} — ${opt.label.replace(/^\S+\s/, '')}`);
     cs.imageType = opt.id;
     cs.imageName = opt.name || opt.label.replace(/^\S+\s/, '');
     if (opt.id === 'custom') {
-      await botMsg('What\'s the Docker image URL for your agent?');
-      setInputMode(true, 'docker.io/myuser/myagent:latest');
+      await botMsg('What\'s the Docker image URL for your gateway?');
+      setInputMode(true, 'docker.io/myuser/mygateway:latest');
       cs.step = 'custom_image';
     } else {
-      await botMsg(`Using ${cs.imageName}.\n\nNow pick a language model — this is the LLM the agent will use for reasoning and tool calls.`);
+      await botMsg(`Using ${cs.imageName}.\n\nNow pick a language model — this is the LLM the gateway will use for reasoning and tool calls.`);
       await stepModel();
     }
   });
@@ -252,7 +252,7 @@ async function stepRegion() {
     userMsg(`${opt.num} — ${opt.name}`);
     cs.region = opt.id;
     cs.regionName = opt.name;
-    await botMsg(`Deploying to ${opt.name}.\n\nHow should the agent run? GPU gives you a dedicated VM with the model loaded locally. CPU is serverless and starts faster, but needs an API key for inference.`);
+    await botMsg(`Deploying to ${opt.name}.\n\nHow should the gateway run? GPU gives you a dedicated VM with the model loaded locally. CPU is serverless and starts faster, but needs an API key for inference.`);
     await stepPlatform();
   });
 }
@@ -271,7 +271,7 @@ async function stepPlatform() {
       await botMsg('GPU mode — the model runs directly on the VM. You can also add an API provider to use additional models alongside the local one.');
       await stepProvider();
     } else if (opt.id === 'cpu') {
-      await botMsg('CPU serverless mode — the agent calls an external inference API for the model.\n\nWhich provider holds your API key?');
+      await botMsg('CPU serverless mode — the gateway calls an external inference API for the model.\n\nWhich provider holds your API key?');
       await stepProvider();
     } else {
       await botMsg('Let me fetch the available compute configurations for that region…');
@@ -318,7 +318,7 @@ async function stepPlatformCustom() {
         await botMsg('GPU config set — the model runs locally. You can also add an API provider to use additional models alongside the local one.');
         await stepProvider();
       } else {
-        await botMsg('CPU config set — the agent will call an external inference API.\n\nWhich provider holds your API key?');
+        await botMsg('CPU config set — the gateway will call an external inference API.\n\nWhich provider holds your API key?');
         await stepProvider();
       }
     });
@@ -372,7 +372,7 @@ async function stepNetwork() {
 async function stepName() {
   cs.step = 'name';
   await botMsg('Enter a name for the endpoint, or press Enter to auto-generate one.');
-  setInputMode(true, 'my-agent  (leave blank to auto-generate)');
+  setInputMode(true, 'my-gateway  (leave blank to auto-generate)');
 }
 
 async function stepConfirm() {
@@ -382,7 +382,7 @@ async function stepConfirm() {
 
   const lines = [
     `Here's your deployment summary:\n`,
-    `• Agent: ${cs.imageName}`,
+    `• Gateway: ${cs.imageName}`,
     cs.imageType === 'custom' ? `  Image: ${cs.customImage}` : null,
     `• Model: ${cs.modelName}`,
     `• Region: ${cs.regionName}`,
@@ -437,7 +437,7 @@ async function stepDeploy() {
       await botMsg(`Your endpoint is being created! 🎉\n\n📌 Name: ${data.name}\n📦 Image: ${data.image}\n\nRefresh Endpoints in ~60 seconds to see it running.`);
       showOptions([
         { num: 1, id: 'endpoints', label: '📡 View Endpoints' },
-        { num: 2, id: 'again',     label: '🦞 Deploy another agent' },
+        { num: 2, id: 'again',     label: '🦞 Deploy another gateway' },
       ], (opt) => {
         userMsg(opt.num === 1 ? '1 — View Endpoints' : '2 — Deploy another');
         if (opt.id === 'endpoints') { switchPage('endpoints'); }
@@ -486,7 +486,7 @@ function chatSend() {
       cs.customImage = text;
       cs.imageName   = 'Custom (' + text.split('/').pop() + ')';
       (async () => {
-        await botMsg('Custom image set.\n\nNow pick a language model — this is the LLM the agent will use for reasoning and tool calls.');
+        await botMsg('Custom image set.\n\nNow pick a language model — this is the LLM the gateway will use for reasoning and tool calls.');
         await stepModel();
       })();
       break;

@@ -438,8 +438,8 @@
 
       <div class="a-row">
         <div class="a-col a-section">
-          <h3>Deploys by Agent</h3>
-          <table class="a-table" id="a-agents"></table>
+          <h3>Deploys by Gateway</h3>
+          <table class="a-table" id="a-gateways"></table>
         </div>
         <div class="a-col a-section">
           <h3>Deploys by Region</h3>
@@ -807,7 +807,7 @@
   function renderAnalytics(data, days) {
     // Aggregate totals
     let totalViews = 0, totalVisitors = 0, totalLogins = 0, totalDeploys = 0, totalErrors = 0;
-    const allPages = {}, allBrowsers = {}, allAgents = {}, allRegions = {}, allPlatforms = {};
+    const allPages = {}, allBrowsers = {}, allGateways = {}, allRegions = {}, allPlatforms = {};
     const dailyArr = []; // oldest → newest
 
     const dates = Object.keys(data).sort();
@@ -820,7 +820,7 @@
       totalErrors   += day.errors || 0;
       merge(allPages, day.pages);
       merge(allBrowsers, day.browsers);
-      merge(allAgents, day.deploysByAgent);
+      merge(allGateways, day.deploysByAgent);
       merge(allRegions, day.deploysByRegion);
       merge(allPlatforms, day.deploysByPlatform);
       dailyArr.push({ date: d, visitors: day.uniqueVisitors || 0, deploys: day.deploys || 0 });
@@ -841,7 +841,7 @@
     // Tables
     renderTable('a-pages', allPages);
     renderTable('a-browsers', allBrowsers);
-    renderTable('a-agents', allAgents);
+    renderTable('a-gateways', allGateways);
     renderTable('a-regions', allRegions);
     renderTable('a-platforms', allPlatforms);
   }

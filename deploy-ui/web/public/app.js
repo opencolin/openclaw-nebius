@@ -887,12 +887,12 @@ function buildSummaryGrid() {
 
   const cards = [];
 
-  // Agent
+  // Gateway
   if (state.selectedImage) {
     const imgCard = document.querySelector(`#image-cards .select-card[data-key="${state.selectedImage}"]`);
     const icon = imgCard?.querySelector('.card-icon')?.textContent || '🤖';
     const name = imgCard?.querySelector('.card-title')?.textContent || state.selectedImage;
-    cards.push({ label: 'Agent', icon, value: name, step: 'image' });
+    cards.push({ label: 'Gateway', icon, value: name, step: 'image' });
   }
 
   // Model

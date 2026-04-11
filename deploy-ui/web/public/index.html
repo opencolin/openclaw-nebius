@@ -136,7 +136,7 @@
         <div id="page-start" class="page hidden">
           <div class="page-header">
             <h2>Getting Started</h2>
-            <p class="page-desc">Deploy your first AI agent in three steps</p>
+            <p class="page-desc">Deploy your first gateway in three steps</p>
           </div>
           <div class="page-body gs-page">
 
@@ -144,7 +144,7 @@
               <div class="gs-step-num">1</div>
               <div class="gs-step-body">
                 <h3>Get a Token Factory API key</h3>
-                <p>Sign up at <strong>tokenfactory.nebius.com</strong> and create an API key. This key lets your agent call LLM inference on Nebius GPUs — no need to run your own model.</p>
+                <p>Sign up at <strong>tokenfactory.nebius.com</strong> and create an API key. This key lets your gateway call LLM inference on Nebius GPUs — no need to run your own model.</p>
                 <ul class="gs-bullets">
                   <li>Token Factory provides access to Llama, DeepSeek, Qwen, and more</li>
                   <li>Keys start with <code>v1.</code> — you'll paste it during deployment</li>
@@ -163,7 +163,7 @@
               <div class="gs-step-num">2</div>
               <div class="gs-step-body">
                 <h3>Deploy an endpoint</h3>
-                <p>Go to <strong>Quick Start</strong> and work through the steps: pick your agent image, choose a model, select a region, and choose a platform. For GPU workloads no API key is required. Hit <strong>Deploy</strong> — the endpoint spins up in about a minute.</p>
+                <p>Go to <strong>Quick Start</strong> and work through the steps: pick your gateway image, choose a model, select a region, and choose a platform. For GPU workloads no API key is required. Hit <strong>Deploy</strong> — the endpoint spins up in about a minute.</p>
                 <ul class="gs-bullets">
                   <li>GPU — dedicated H200 VM, model runs locally, no API key needed</li>
                   <li>CPU Only — serverless, fastest cold start, uses Token Factory</li>
@@ -181,11 +181,11 @@
             <div class="gs-step">
               <div class="gs-step-num">3</div>
               <div class="gs-step-body">
-                <h3>Connect to your agent</h3>
+                <h3>Connect to your gateway</h3>
                 <p>Open <strong>Endpoints</strong> to see your running endpoints. Each active endpoint has two ways to connect:</p>
                 <ul class="gs-bullets">
-                  <li><strong>Terminal</strong> — opens a live SSH shell directly in the browser. Use it to inspect logs, run commands, or debug your agent.</li>
-                  <li><strong>Dashboard</strong> — opens the agent's web UI in a new tab (proxied through this server). Use it to interact with your agent, test prompts, and monitor activity.</li>
+                  <li><strong>Terminal</strong> — opens a live SSH shell directly in the browser. Use it to inspect logs, run commands, or debug your gateway.</li>
+                  <li><strong>Dashboard</strong> — opens the gateway's web UI in a new tab (proxied through this server). Use it to interact with your gateway, test prompts, and monitor activity.</li>
                 </ul>
                 <p class="gs-note">Endpoints that show <em>inactive</em> can be started from the action menu on the right.</p>
                 <button class="btn btn-primary btn-sm gs-action" onclick="switchPage('endpoints')">
@@ -202,7 +202,7 @@
         <div id="page-deploy" class="page hidden">
           <div class="page-header">
             <h2>Quick Start</h2>
-            <p class="page-desc">Choose an agent, region, and deploy to Nebius Cloud</p>
+            <p class="page-desc">Choose a gateway, region, and deploy to Nebius Cloud</p>
           </div>
 
           <div class="page-body">
@@ -221,7 +221,7 @@
             <section class="step">
               <div class="step-header">
                 <span class="step-num">1</span>
-                <h3>Choose Agent</h3>
+                <h3>Choose Gateway</h3>
               </div>
               <div class="card-grid" id="image-cards"></div>
 
@@ -234,7 +234,7 @@
                   </div>
                 </div>
                 <div class="custom-url-divider"><span>or enter a custom URL</span></div>
-                <input type="text" id="custom-image-url" placeholder="e.g. docker.io/myuser/myagent:latest" />
+                <input type="text" id="custom-image-url" placeholder="e.g. docker.io/myuser/mygateway:latest" />
               </div>
             </section>
 
@@ -317,7 +317,7 @@
               <div class="config-form">
                 <div class="form-group">
                   <label>Endpoint Name</label>
-                  <input type="text" id="endpoint-name" placeholder="my-agent (auto-generated if empty)" />
+                  <input type="text" id="endpoint-name" placeholder="my-gateway (auto-generated if empty)" />
                 </div>
 
                 <!-- API Key (Token Factory) -->
