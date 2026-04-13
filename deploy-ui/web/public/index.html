@@ -126,21 +126,17 @@
                   <code class="token-cmd" style="font-size:0.75rem">curl -sSL https://storage.eu-north1.nebius.cloud/cli/install.sh | bash</code>
                   <button class="token-copy-btn" onclick="navigator.clipboard.writeText('curl -sSL https://storage.eu-north1.nebius.cloud/cli/install.sh | bash')" title="Copy">📋</button>
                 </div>
-                <p style="margin-top:0.5rem">Then log in and get your access token:</p>
+                <p style="margin-top:0.5rem">Then authenticate (opens browser):</p>
                 <div class="token-cmd-wrap">
-                  <code class="token-cmd">nebius iam login</code>
-                  <button class="token-copy-btn" onclick="navigator.clipboard.writeText('nebius iam login')" title="Copy">📋</button>
-                </div>
-                <div class="token-cmd-wrap">
-                  <code class="token-cmd">nebius iam get-access-token</code>
-                  <button class="token-copy-btn" onclick="navigator.clipboard.writeText('nebius iam get-access-token')" title="Copy">📋</button>
+                  <code class="token-cmd">nebius profile create</code>
+                  <button class="token-copy-btn" onclick="navigator.clipboard.writeText('nebius profile create')" title="Copy">📋</button>
                 </div>
                 <div id="gs-iam-token-group" style="margin-top:0.75rem">
                   <div class="iam-token-status" id="gs-iam-token-status"></div>
                   <div class="oauth-login-row" id="gs-oauth-row" style="display:none">
                     <button class="btn btn-primary btn-oauth-login" onclick="loginWithNebius()">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-                      Login with Nebius
+                      Login with Nebius CLI
                     </button>
                     <div class="oauth-fallback"><a href="#" onclick="this.closest('.oauth-login-row').style.display='none';document.getElementById('gs-token-row').style.display='';return false">Or use an access token</a></div>
                   </div>
@@ -412,7 +408,7 @@
                   <div class="oauth-login-row" id="deploy-oauth-row" style="display:none">
                     <button class="btn btn-primary btn-oauth-login" onclick="loginWithNebius()">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-                      Login with Nebius
+                      Login with Nebius CLI
                     </button>
                     <div class="oauth-fallback"><a href="#" onclick="this.closest('.oauth-login-row').style.display='none';document.getElementById('deploy-token-row').style.display='';document.getElementById('deploy-form-hint').style.display='';return false">Or use an access token</a></div>
                   </div>
@@ -525,7 +521,7 @@
                   <div class="oauth-login-row" id="ep-oauth-row" style="display:none">
                     <button class="btn btn-primary btn-oauth-login" onclick="loginWithNebius()">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-                      Login with Nebius
+                      Login with Nebius CLI
                     </button>
                     <div class="oauth-fallback"><a href="#" onclick="this.closest('.oauth-login-row').style.display='none';document.getElementById('ep-token-row').style.display='';document.getElementById('ep-form-hint').style.display='';return false">Or use an access token</a></div>
                   </div>

@@ -60,26 +60,9 @@ const sessionMiddleware = session({
 });
 app.use(sessionMiddleware);
 
-// ── OAuth2 PKCE + Constants ──────────────────────────────────────────────
-const NEBIUS_AUTH_URL = 'https://auth.nebius.com/oauth2/authorize';
-const NEBIUS_TOKEN_URL = 'https://auth.nebius.com/oauth2/token';
-const NEBIUS_CLIENT_ID = process.env.NEBIUS_CLIENT_ID || 'nebius-cli';
-function getOAuthRedirectUri(req) {
-  if (process.env.OAUTH_REDIRECT_URI) return process.env.OAUTH_REDIRECT_URI;
-  // On localhost, build redirect URI dynamically from request
-  const host = req?.get('host');
-  if (host && (host.startsWith('localhost') || host.startsWith('127.0.0.1'))) {
-    const proto = req.protocol || 'http';
-    return `${proto}://${host}/api/auth/callback`;
-  }
-  return 'https://claw.moi/api/auth/callback';
-}
-
-function generatePKCE() {
-  const verifier = crypto.randomBytes(32).toString('base64url');
-  const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
-  return { verifier, challenge };
-}
+// ── CLI Login Helper ─────────────────────────────────────────────────────
+// Instead of OAuth, we run `nebius iam get-access-token` on the server.
+// Requires the user to have already run `nebius profile create` locally.
 
 // ── Admin / Event Logger ────────────────────────────────────────────────────
 // Must be defined before loadNebiusConfig() is called at module load time.
@@ -557,7 +540,7 @@ function storePassword(name, password) {
   try { fs.writeFileSync(PASSWORDS_FILE, JSON.stringify(endpointPasswords, null, 2)); } catch (e) { /* ignore */ }
 }
 
-// ── Routes: Auth (OAuth2 PKCE) ────────────────────────────────────────────
+// ── Routes: Auth ──────────────────────────────────────────────────────────
 
 // Check authentication status from session
 app.get('/api/auth/status', (req, res) => {
@@ -630,60 +613,21 @@ app.post('/api/auth/token', async (req, res) => {
   }
 });
 
-// OAuth2 PKCE Login — redirects browser to Nebius auth page
-app.get('/api/auth/login', (req, res) => {
-  const { verifier, challenge } = generatePKCE();
-  req.session.pkceVerifier = verifier;
-  const redirectUri = getOAuthRedirectUri(req);
-  const params = new URLSearchParams({
-    response_type: 'code',
-    client_id: NEBIUS_CLIENT_ID,
-    redirect_uri: redirectUri,
-    code_challenge: challenge,
-    code_challenge_method: 'S256',
-    scope: 'openid'
-  });
-  res.redirect(`${NEBIUS_AUTH_URL}?${params}`);
-});
-
-// OAuth2 PKCE Callback — exchanges code for tokens
-app.get('/api/auth/callback', async (req, res) => {
-  const { code, error } = req.query;
-  if (error || !code) {
-    eventLog.error('AUTH', 'OAuth callback error', { error: error || 'no code' });
-    return res.redirect('/?auth_error=' + encodeURIComponent(error || 'no_code'));
-  }
-
-  const verifier = req.session.pkceVerifier;
-  if (!verifier) {
-    eventLog.error('AUTH', 'OAuth callback missing PKCE verifier');
-    return res.redirect('/?auth_error=missing_verifier');
-  }
-  delete req.session.pkceVerifier;
-
+// CLI Login — runs `nebius iam get-access-token` on the server
+// Requires the user to have already authenticated via `nebius profile create`
+app.post('/api/auth/cli-login', async (req, res) => {
   try {
-    const redirectUri = getOAuthRedirectUri(req);
-    const tokenRes = await fetch(NEBIUS_TOKEN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: redirectUri,
-        client_id: NEBIUS_CLIENT_ID,
-        code_verifier: verifier
-      })
-    });
+    const accessToken = execSync('nebius iam get-access-token', {
+      encoding: 'utf-8',
+      timeout: 15000,
+      env: nebiusExecEnv()
+    }).trim();
 
-    if (!tokenRes.ok) {
-      const errBody = await tokenRes.text();
-      eventLog.error('AUTH', 'OAuth token exchange failed', { status: tokenRes.status, body: errBody });
-      return res.redirect('/?auth_error=token_exchange_failed');
+    if (!accessToken || accessToken.length < 10) {
+      eventLog.error('AUTH', 'CLI login returned empty token');
+      trackLogin(false);
+      return res.status(401).json({ error: 'No valid token returned. Run `nebius profile create` first.' });
     }
-
-    const tokens = await tokenRes.json();
-    const accessToken = tokens.access_token;
-    const expiresIn = tokens.expires_in || 43200; // default 12h
 
     // Verify token and get user info
     const whoami = execSync('nebius iam whoami --format json', {
@@ -695,25 +639,28 @@ app.get('/api/auth/callback', async (req, res) => {
     const attrs = identity.user_profile?.attributes || {};
     const user = attrs.name || attrs.given_name || attrs.email || identity.user_profile?.id || 'Nebius User';
 
-    // Store in session
+    // Store in session (token valid ~12 hours)
     req.session.nebiusToken = accessToken;
-    req.session.tokenExpiresAt = Date.now() + expiresIn * 1000;
+    req.session.tokenExpiresAt = Date.now() + 43200 * 1000;
     req.session.authenticated = true;
     req.session.isDemo = false;
     req.session.user = user;
 
-    eventLog.info('AUTH', 'User logged in via OAuth', { user });
+    eventLog.info('AUTH', 'User logged in via CLI', { user });
     trackLogin(true);
 
-    res.redirect('/');
+    res.json({ ok: true, user });
   } catch (err) {
-    eventLog.error('AUTH', 'OAuth callback failed', { error: err.message });
+    eventLog.error('AUTH', 'CLI login failed', { error: err.message });
     trackLogin(false);
-    res.redirect('/?auth_error=callback_failed');
+    const msg = err.message.includes('not found') || err.message.includes('ENOENT')
+      ? 'Nebius CLI not installed. Run: curl -sSL https://storage.eu-north1.nebius.cloud/cli/install.sh | bash'
+      : 'Not authenticated. Run `nebius profile create` in your terminal first.';
+    res.status(401).json({ error: msg });
   }
 });
 
-// Check if OAuth login is available (localhost only)
+// Check if CLI login is available (localhost only, not Vercel)
 app.get('/api/auth/can-oauth', (req, res) => {
   const host = req.get('host') || '';
   const isLocal = host.startsWith('localhost') || host.startsWith('127.0.0.1');
