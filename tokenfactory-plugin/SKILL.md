@@ -1,7 +1,7 @@
 ---
 name: openclaw-nebius
 description: Nebius Token Factory provider plugin — adds 44+ open-source models (Qwen, DeepSeek, Llama, Gemma, GLM, FLUX, and more) to OpenClaw via a single OpenAI-compatible endpoint
-version: 1.2.2
+version: 1.3.0
 homepage: https://github.com/colygon/openclaw-nebius/tree/main/tokenfactory-plugin
 metadata: {"openclaw":{"requires":{"env":["NEBIUS_API_KEY"]},"primaryEnv":"NEBIUS_API_KEY"}}
 env:
@@ -110,7 +110,7 @@ To deploy OpenClaw as a serverless endpoint on Nebius AI Cloud, use the [nebius 
 |----------|----------|-------------|
 | `NEBIUS_API_KEY` | Yes | API key from [studio.nebius.ai](https://studio.nebius.ai/) |
 
-No other credentials are needed. The plugin only communicates with `https://api.tokenfactory.us-central1.nebius.com/v1`.
+No other credentials are needed. The plugin only communicates with `https://api.tokenfactory.nebius.com/v1`.
 
 ## Available Models
 

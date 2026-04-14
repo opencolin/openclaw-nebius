@@ -1,5 +1,5 @@
 {
-  "id": "@colygon/openclaw-nebius",
+  "id": "nebius",
   "name": "Nebius Token Factory",
   "description": "Nebius Token Factory model provider — access Qwen, DeepSeek, GLM, Llama, Gemma, FLUX, and more via a single OpenAI-compatible endpoint",
   "providers": ["nebius"],
