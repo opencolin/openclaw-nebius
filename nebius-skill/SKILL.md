@@ -260,7 +260,7 @@ For complete step-by-step deployment workflows, see:
 
 ## OpenClaw / NemoClaw Deployment
 
-OpenClaw is an open-source AI agent platform. NemoClaw is an NVIDIA plugin that wraps OpenClaw, adding sandbox execution and enhanced planning — ideal for GPU endpoints with local models.
+OpenClaw is an open-source AI agent platform. NemoClaw is an NVIDIA security container that wraps OpenClaw, adding sandboxed execution and enhanced planning — ideal for GPU endpoints with local models.
 
 ### Step-by-Step: Deploy OpenClaw to Nebius Serverless
 
@@ -272,7 +272,7 @@ When the user asks to deploy OpenClaw (or an AI agent), follow these steps:
 IMAGE="ghcr.io/colygon/openclaw-serverless:latest"
 MODEL="zai-org/GLM-5"   # or: deepseek-ai/DeepSeek-R1-0528, MiniMaxAI/MiniMax-M2.5, zai-org/GLM-4.5
 
-# NemoClaw (GPU, local model, NVIDIA plugin):
+# NemoClaw (GPU, local model, NVIDIA security container):
 IMAGE="ghcr.io/colygon/nemoclaw-serverless:latest"
 ```
 
@@ -382,7 +382,7 @@ Pre-built images are available on GitHub Container Registry (no build required):
 # OpenClaw only (lightweight, ~400 MB, CPU)
 ghcr.io/colygon/openclaw-serverless:latest
 
-# NemoClaw (OpenClaw + NVIDIA plugin, ~1.1 GB, GPU-ready)
+# NemoClaw (OpenClaw in NVIDIA security container, ~1.1 GB, GPU-ready)
 ghcr.io/colygon/nemoclaw-serverless:latest
 ```
 
@@ -441,7 +441,7 @@ The entrypoint script generates `~/.openclaw/openclaw.json` at container startup
   ```bash
   export OPENCLAW_GATEWAY_TOKEN="${OPENCLAW_WEB_PASSWORD:-${GATEWAY_TOKEN:-openclaw-$(hostname)}}"
   ```
-- **Do NOT add a `plugins` key**: `"plugins": { "nemoclaw": { "enabled": true } }` is NOT a valid OpenClaw config key and crashes the gateway with `"Config invalid - plugins: Unrecognized key"`. NemoClaw is loaded automatically when installed globally via npm.
+- **Do NOT add a `plugins` key**: `"plugins": { "nemoclaw": { "enabled": true } }` is NOT a valid OpenClaw config key and crashes the gateway with `"Config invalid - plugins: Unrecognized key"`. NemoClaw loads automatically when present in the container.
 - **`allowedOrigins: ["*"]`**: Required for dashboard access through reverse proxies:
   ```json
   "gateway": {

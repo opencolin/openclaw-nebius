@@ -59,7 +59,7 @@ curl http://localhost:8080
 | Image | Size | Description |
 |-------|------|-------------|
 | `ghcr.io/colygon/openclaw-serverless:latest` | ~400 MB | OpenClaw agent (CPU) |
-| `ghcr.io/colygon/nemoclaw-serverless:latest` | ~1.1 GB | OpenClaw + NVIDIA NemoClaw plugin |
+| `ghcr.io/colygon/nemoclaw-serverless:latest` | ~1.1 GB | OpenClaw in NVIDIA NemoClaw security container |
 
 ## When to use this
 

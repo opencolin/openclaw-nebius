@@ -144,21 +144,39 @@ Confirm that `Status: loaded` appears and that models are listed. If verificatio
 - **401 Unauthorized** — the API key is wrong or expired. Ask the user to double-check it at studio.nebius.ai.
 - **No models listed** — restart the gateway again and retry.
 
-## Step 8: Set a default model (optional)
+## Step 8: Configure recommended models
 
-Ask the user if they'd like to set a Nebius model as their default. Suggest popular options:
-
-- `nebius/deepseek-ai/DeepSeek-V3.2` — fast, strong general-purpose (163K context)
-- `nebius/Qwen/Qwen3.5-397B-A17B` — largest Qwen, excellent reasoning
-- `nebius/zai-org/GLM-5` — strong chat model
-- `nebius/openai/gpt-oss-120b` — OpenAI open-source reasoning model
-
-If they choose one:
+Add the top 11 Token Factory models to the model picker. This makes them show up in `openclaw models list` and the `/model` picker:
 
 ```bash
-openclaw config set agents.defaults.model.primary "<MODEL_ID>"
+openclaw config set agents.defaults.models '{
+  "nebius/NousResearch/Hermes-4-405B": {"alias": "Hermes"},
+  "nebius/zai-org/GLM-5": {"alias": "GLM-5"},
+  "nebius/deepseek-ai/DeepSeek-V3.2": {"alias": "DeepSeek V3"},
+  "nebius/deepseek-ai/DeepSeek-R1-0528": {"alias": "DeepSeek R1"},
+  "nebius/Qwen/Qwen3.5-397B-A17B": {"alias": "Qwen 3.5"},
+  "nebius/Qwen/Qwen3-Coder-480B-A35B-Instruct": {"alias": "Qwen Coder"},
+  "nebius/minimax/MiniMax-M2.5": {"alias": "MiniMax"},
+  "nebius/openai/gpt-oss-120b": {"alias": "GPT-OSS"},
+  "nebius/nvidia/Nemotron-3-Super-120b-a12b": {"alias": "Nemotron"},
+  "nebius/moonshot-ai/Kimi-K2.5": {"alias": "Kimi K2.5"},
+  "nebius/google/Gemma-3-27b-it": {"alias": "Gemma 3"}
+}'
+```
+
+Set the default model (Hermes 4 is best for agentic tool-use workflows):
+
+```bash
+openclaw config set agents.defaults.model '{"primary": "nebius/NousResearch/Hermes-4-405B", "fallbacks": ["nebius/zai-org/GLM-5", "nebius/deepseek-ai/DeepSeek-V3.2", "nebius/Qwen/Qwen3.5-397B-A17B"]}'
+```
+
+Then restart the gateway:
+
+```bash
 openclaw gateway restart
 ```
+
+All 40 models are still available by full ID even if not in the configured list.
 
 ## Step 9: Done
 

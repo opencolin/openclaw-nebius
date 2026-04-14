@@ -11,7 +11,7 @@
 | **Time to deploy** | ~5 minutes |
 | **Cost** | Predictable hourly rate, auto-pauses when idle |
 
-Deploy [NemoClaw](https://github.com/NVIDIA/NemoClaw) (NVIDIA's OpenClaw plugin) with a local LLM running on a cloud-hosted GPU. Everything runs in one container -- no external API calls. The serverless endpoint auto-pauses when idle, so you only pay for active time.
+Deploy [NemoClaw](https://github.com/NVIDIA/NemoClaw) (NVIDIA's security container for OpenClaw) with a local LLM running on a cloud-hosted GPU. Everything runs in one container -- no external API calls. The serverless endpoint auto-pauses when idle, so you only pay for active time.
 
 ## Prerequisites
 

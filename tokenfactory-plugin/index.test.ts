@@ -122,7 +122,7 @@ describe("nebius provider plugin", () => {
     });
 
     it("BASE_URL points to token factory", () => {
-      expect(BASE_URL).toBe("https://api.tokenfactory.us-central1.nebius.com/v1");
+      expect(BASE_URL).toBe("https://api.tokenfactory.nebius.com/v1");
     });
   });
 

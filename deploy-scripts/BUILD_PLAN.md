@@ -209,7 +209,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ── Install OpenClaw CLI ──
 RUN npm install -g openclaw@2026.3.11
 
-# ── Install NemoClaw plugin ──
+# ── Install NemoClaw ──
 RUN npm install -g @nvidia/nemoclaw@latest
 
 # ── Set up nginx proxy config template ──

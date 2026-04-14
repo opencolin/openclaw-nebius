@@ -151,9 +151,11 @@ The nebius-skill package is pure markdown and requires no build step.
 
 ## Related
 
-- [OpenClaw](https://github.com/nichochar/openclaw) -- The open-source AI agent platform
-- [Nebius Cloud](https://nebius.com) -- Cloud platform with GPU infrastructure
+- [OpenClaw Docs](https://docs.openclaw.ai) -- Official OpenClaw documentation
+- [Docker Install](https://docs.openclaw.ai/install/docker) -- Install OpenClaw with Docker
 - [Token Factory](https://tokenfactory.nebius.com) -- Nebius managed GPU inference API
+- [Discord](https://discord.gg/pYJqCyWt) -- Join the OpenClaw community
+- [Nebius Cloud](https://nebius.com) -- Cloud platform with GPU infrastructure
 - [Nebius CLI docs](https://docs.nebius.com/cli/) -- Official CLI documentation
 
 ## License

@@ -115,7 +115,7 @@ export const NEBIUS_MODELS: NebiusModel[] = [
 ];
 
 export const PROVIDER_ID = "nebius";
-export const BASE_URL = "https://api.tokenfactory.us-central1.nebius.com/v1";
+export const BASE_URL = "https://api.tokenfactory.nebius.com/v1";
 
 // ─── Plugin entry ───────────────────────────────────────────────────────────
 // Uses defineSingleProviderPluginEntry (same pattern as built-in DeepSeek,
@@ -145,7 +145,7 @@ const plugin: any = defineSingleProviderPluginEntry({
       flagName: "--nebius-api-key",
       envVar: "NEBIUS_API_KEY",
       promptMessage: "Enter your Nebius Token Factory API key",
-      defaultModel: `${PROVIDER_ID}/Qwen/Qwen3.5-397B-A17B`,
+      defaultModel: `${PROVIDER_ID}/NousResearch/Hermes-4-405B`,
     }],
     catalog: { buildProvider: buildNebiusProvider },
   },

@@ -5,7 +5,7 @@
 #
 # What this script does:
 #   1. Creates a Nebius Container Registry (if one doesn't exist)
-#   2. Builds a Docker image with OpenClaw + NemoClaw plugin
+#   2. Builds a Docker image with OpenClaw + NemoClaw security container
 #   3. Pushes the image to your Nebius Container Registry
 #   4. Creates a serverless AI endpoint running the image
 #   5. Waits for the endpoint to become RUNNING
@@ -134,7 +134,7 @@ IMAGE="${REGISTRY_URL}/${REGISTRY_ID}/nemoclaw-serverless:latest"
 # We build a Docker image containing:
 #   - Node.js 22 (OpenClaw is a Node.js app)
 #   - OpenClaw CLI installed globally via npm
-#   - NemoClaw plugin installed from GitHub
+#   - NemoClaw security container installed from GitHub
 #   - A custom entrypoint script that configures and starts OpenClaw
 #
 # The image is built for linux/amd64 because Nebius cpu-e2 runs Intel CPUs.
@@ -156,7 +156,7 @@ trap "rm -rf $BUILD_DIR" EXIT
 # that aren't available in the slim image.
 cat > "$BUILD_DIR/Dockerfile" << 'DOCKERFILE'
 # NemoClaw Serverless — CPU-only for Nebius cpu-e2 (Intel Ice Lake)
-# Includes OpenClaw + NemoClaw plugin, no GPU required.
+# Includes OpenClaw + NemoClaw security container, no GPU required.
 # Inference routed to Nebius Token Factory.
 #
 # IMPORTANT: Must use node:22 (not slim) — NemoClaw dependencies need
@@ -178,7 +178,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # `openclaw-gateway` binary for the WebSocket gateway server
 RUN npm install -g openclaw
 
-# Install NemoClaw plugin from GitHub
+# Install NemoClaw security container from GitHub
 # --ignore-scripts: skip post-install scripts that fail in Docker builds.
 # Specifically, @whiskeysockets/baileys has a post-install script that
 # tries to spawn `sh` in a way that fails inside BuildKit.

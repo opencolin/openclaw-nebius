@@ -396,7 +396,7 @@ const IMAGES = {
   },
   'nemoclaw': {
     name: 'NemoClaw',
-    description: 'Full gateway — OpenClaw + NVIDIA NemoClaw plugin',
+    description: 'OpenClaw in NVIDIA NemoClaw security container',
     icon: '🔱',
     getImage: (registryId, region) =>
       registryId
@@ -449,11 +449,12 @@ function findSshKey() {
   if (customPath && fs.existsSync(customPath)) return customPath;
 
   const candidates = [
+    path.join(process.env.HOME, '.ssh', 'id_ed25519_nebius'),
     path.join(process.env.HOME, '.ssh', 'id_ed25519'),
     path.join(process.env.HOME, '.ssh', 'id_ed25519_vm'),
     path.join(process.env.HOME, '.ssh', 'id_rsa')
   ];
-  return candidates.find(k => fs.existsSync(k)) || candidates[1];
+  return candidates.find(k => fs.existsSync(k)) || null;
 }
 
 // ── Nebius CLI helper ──────────────────────────────────────────────────────
@@ -728,8 +729,12 @@ app.get('/api/secrets/:id/payload', requireAuth, (req, res) => {
     const data = nebiusJson(`mysterybox payload get --secret-id ${id}`, null, token);
     // Return all key-value pairs from the secret
     const payload = {};
-    for (const entry of (data.data || [])) {
-      payload[entry.key] = entry.string_value || entry.binary_value || '';
+    const entries = data.data || data.entries || data.payload?.data || [];
+    for (const entry of entries) {
+      payload[entry.key] = entry.string_value || entry.text_value || entry.binary_value || entry.value || '';
+    }
+    if (Object.keys(payload).length === 0) {
+      eventLog.warn('MYSTERYBOX', 'Secret payload empty or unexpected format', { secretId: id, keys: Object.keys(data) });
     }
     res.json(payload);
   } catch (err) {
@@ -2118,6 +2123,7 @@ const wss = new WebSocket.Server({ noServer: true, perMessageDeflate: false });
 wss.on('connection', (ws, req) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const rawIp = url.searchParams.get('ip');
+  const endpointId = url.searchParams.get('endpointId');
 
   let ip;
   try {
@@ -2128,34 +2134,67 @@ wss.on('connection', (ws, req) => {
     return;
   }
 
-  eventLog.info('TERMINAL', 'SSH terminal connecting', { ip });
+  // Get user's IAM token from session for nebius CLI auth
+  const wsToken = req.session?.nebiusToken || null;
 
-  const sshKey = findSshKey();
-  eventLog.debug('TERMINAL', 'SSH key resolved', { sshKey });
+  let sshProc;
 
-  if (!sshKey) {
-    ws.send(JSON.stringify({ type: 'error', data: 'No SSH key found. Check ~/.ssh/ for id_ed25519 or id_ed25519_vm.' }));
-    ws.close();
-    return;
+  if (endpointId) {
+    // Cloud endpoint: use nebius CLI
+    const nebiusEnv = { ...process.env, TERM: 'xterm-256color' };
+    const nebiusBin = path.join(process.env.HOME, '.nebius', 'bin');
+    nebiusEnv.PATH = `${nebiusBin}:${nebiusEnv.PATH || ''}`;
+    if (wsToken) nebiusEnv.NEBIUS_IAM_TOKEN = wsToken;
+
+    // Check if endpoint has a public IP by looking at the proxy cache
+    const ep = Object.values(proxyEndpointCache).find(e => e.name === ip || e.ip === ip);
+    const hasPublicIp = url.searchParams.get('hasPublicIp') === 'true';
+
+    if (hasPublicIp) {
+      // SSH via nebius CLI (requires public IP)
+      eventLog.info('TERMINAL', 'Nebius CLI SSH connecting', { endpointId, ip });
+      ws.send(JSON.stringify({ type: 'status', data: `Connecting to ${endpointId} via SSH...\r\n` }));
+
+      const sshKey = findSshKey();
+      const sshArgs = ['ai', 'endpoint', 'ssh', endpointId];
+      if (sshKey) sshArgs.push('-i', sshKey);
+
+      sshProc = spawn('nebius', sshArgs, { env: nebiusEnv });
+    } else {
+      // No public IP — fall back to streaming logs
+      eventLog.info('TERMINAL', 'No public IP, streaming logs', { endpointId });
+      ws.send(JSON.stringify({ type: 'status', data: `No public IP — streaming logs for ${endpointId}...\r\n` }));
+      ws.send(JSON.stringify({ type: 'status', data: `(Redeploy with Public IP enabled to get full terminal access)\r\n\r\n` }));
+
+      sshProc = spawn('nebius', ['ai', 'endpoint', 'logs', endpointId, '--follow'], { env: nebiusEnv });
+    }
+  } else {
+    // Local/direct: use raw SSH
+    eventLog.info('TERMINAL', 'SSH terminal connecting', { ip });
+
+    const sshKey = findSshKey();
+    if (!sshKey) {
+      ws.send(JSON.stringify({ type: 'error', data: 'No SSH key found. Check ~/.ssh/ for id_ed25519 or id_ed25519_vm.' }));
+      ws.close();
+      return;
+    }
+
+    ws.send(JSON.stringify({ type: 'status', data: `Connecting to ${ip}...\r\n` }));
+
+    sshProc = spawn('ssh', [
+      '-tt',
+      '-i', sshKey,
+      '-o', 'StrictHostKeyChecking=no',
+      '-o', 'UserKnownHostsFile=/dev/null',
+      '-o', 'ServerAliveInterval=15',
+      '-o', 'ConnectTimeout=30',
+      '-o', 'ConnectionAttempts=2',
+      `nebius@${ip}`,
+      'sudo docker exec -it $(sudo docker ps -q | head -1) openclaw tui 2>/dev/null || echo "No container running — dropping to shell"; bash'
+    ], {
+      env: { ...process.env, TERM: 'xterm-256color' }
+    });
   }
-
-  ws.send(JSON.stringify({ type: 'status', data: `Connecting to ${ip}...\r\n` }));
-
-  // SSH into the endpoint, then exec into the container to run openclaw
-  const sshProc = spawn('ssh', [
-    '-tt',
-    '-i', sshKey,
-    '-o', 'StrictHostKeyChecking=no',
-    '-o', 'UserKnownHostsFile=/dev/null',
-    '-o', 'ServerAliveInterval=15',
-    '-o', 'ConnectTimeout=30',
-    '-o', 'ConnectionAttempts=2',
-    `nebius@${ip}`,
-    // After SSH connects, find the running container and exec openclaw tui
-    'sudo docker exec -it $(sudo docker ps -q | head -1) openclaw tui 2>/dev/null || echo "No container running — dropping to shell"; bash'
-  ], {
-    env: { ...process.env, TERM: 'xterm-256color' }
-  });
 
   sshProc.stdout.on('data', (data) => {
     if (ws.readyState === WebSocket.OPEN) {

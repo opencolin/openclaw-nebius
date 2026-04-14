@@ -13,7 +13,7 @@ Three deployment options for running AI coding agents on Nebius Cloud, plus a we
 
 ## Option A: OpenClaw Serverless (cpu-e2, no GPU)
 
-Lightweight deployment of OpenClaw only. No NemoClaw plugin, no GPU. Inference is routed to Nebius Token Factory.
+Lightweight deployment of OpenClaw only. No NemoClaw security container, no GPU. Inference is routed to Nebius Token Factory.
 
 ### Quick Start
 
@@ -80,7 +80,7 @@ nebius ai endpoint delete <ENDPOINT_ID>
 
 ## Option B: NemoClaw Serverless (cpu-e2, no GPU)
 
-Deploys the full NemoClaw stack (OpenClaw + NVIDIA NemoClaw plugin) on a CPU-only serverless endpoint. Inference is routed to Nebius Token Factory — no GPU quota needed.
+Deploys the full NemoClaw stack (OpenClaw + NVIDIA NemoClaw security container) on a CPU-only serverless endpoint. Inference is routed to Nebius Token Factory — no GPU quota needed.
 
 This is the right choice when you want NemoClaw's sandbox orchestration and agent capabilities without paying for a dedicated GPU VM.
 
@@ -103,7 +103,7 @@ export TOKEN_FACTORY_API_KEY="v1.xxx..."
 ### What It Does
 
 1. Creates a container registry in your Nebius project
-2. Builds a Docker image with OpenClaw + NemoClaw plugin (linux/amd64)
+2. Builds a Docker image with OpenClaw + NemoClaw security container (linux/amd64)
 3. Pushes to Nebius Container Registry
 4. Deploys on `cpu-e2` (Intel Ice Lake, 2 vCPU, 8 GB RAM)
 5. Exposes health check on port 8080 and gateway on port 18789
@@ -116,7 +116,7 @@ export TOKEN_FACTORY_API_KEY="v1.xxx..."
 │  ┌────────────────────────────────────┐ │
 │  │  NemoClaw Container               │ │
 │  │  ├── OpenClaw runtime             │ │
-│  │  ├── NemoClaw plugin (sandbox)    │ │
+│  │  ├── NemoClaw security container (sandbox)    │ │
 │  │  ├── Health check (:8080)         │ │
 │  │  └── Gateway (:18789)             │ │
 │  └────────────────────────────────────┘ │

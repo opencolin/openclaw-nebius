@@ -22,6 +22,8 @@ let fitAddon = null;
 let terminalWs = null;
 let currentTerminalIp = null;
 let currentTerminalName = null;
+let currentTerminalEndpointId = null;
+let currentTerminalHasPublicIp = false;
 
 // Endpoints search/filter state
 let endpointsCache = [];
@@ -149,10 +151,12 @@ function setupDelegatedListeners() {
     const ip = btn.dataset.ip;
     const name = btn.dataset.name;
     const id = btn.dataset.id;
+    const endpointId = btn.dataset.endpointId || null;
+    const hasPublicIp = btn.dataset.hasPublicIp === 'true';
     const token = btn.dataset.token || null;
 
     switch (action) {
-      case 'terminal': openTerminal(ip, name); break;
+      case 'terminal': openTerminal(ip, name, endpointId, hasPublicIp); break;
       case 'dashboard': openDashboard(ip, name, token); break;
       case 'logs': openLogs(id, name); break;
       case 'stop': stopEndpoint(id, name); break;
@@ -607,7 +611,7 @@ let localGatewayAvailable = false;
 let localGatewayInfo = null;
 
 function updateGatewayBadge() {
-  const total = endpointsCache.length + localInstancesCache.length;
+  const total = endpointsCache.length + localInstancesCache.length + (localGatewayAvailable ? 1 : 0);
   const badge = document.getElementById('endpoints-count');
   const dockBadge = document.getElementById('dock-endpoints-count');
   if (total > 0) {
@@ -809,7 +813,7 @@ function renderUnifiedInstances() {
           </div>
         </div>
         <div class="instance-actions">
-          ${isRunning && ip ? `<button class="btn btn-sm btn-action-pill btn-terminal" onclick="openTerminal('${esc(ip)}','${esc(ep.name)}')">Terminal</button>` : ''}
+          ${isRunning && ip ? `<button class="btn btn-sm btn-action-pill btn-terminal" onclick="openTerminal('${esc(ip)}','${esc(ep.name)}','${esc(ep.id)}',${!!ep.publicIp})">Terminal</button>` : ''}
           ${isRunning && ip ? `<a href="http://${esc(ip)}:18789/" target="_blank" class="btn btn-sm btn-action-pill btn-dashboard">Dashboard</a>` : ''}
           <div class="instance-kebab">
             <button class="instance-kebab-btn" onclick="toggleInstanceMenu(this, event)">&#x22EE;</button>
@@ -1794,7 +1798,7 @@ async function loadMysteryBoxSecrets() {
     const html = activeSecrets.length === 0
       ? '<div class="mb-empty">No secrets in MysteryBox · <a href="https://console.nebius.com/mysterybox" target="_blank">Create one</a></div>'
       : activeSecrets.map(s => `
-          <div class="mb-secret-item" data-secret-id="${esc(s.id)}">
+          <div class="mb-secret-item" data-secret-id="${esc(s.id)}" onclick="selectMysteryBoxSecret('${esc(s.id)}', this)">
             <div class="mb-secret-info">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               <span class="mb-secret-name">${esc(s.name)}</span>
@@ -2089,7 +2093,7 @@ function renderEndpoints() {
     const actions = [];
     const connectIp = ep.publicIp || ep.privateIp;
     if (connectIp && ep.state === 'RUNNING') {
-      actions.push(`<button class="btn-action-pill btn-terminal" data-action="terminal" data-ip="${esc(connectIp)}" data-name="${esc(ep.name)}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg> Terminal</button>`);
+      actions.push(`<button class="btn-action-pill btn-terminal" data-action="terminal" data-ip="${esc(connectIp)}" data-name="${esc(ep.name)}" data-endpoint-id="${esc(ep.id)}" data-has-public-ip="${!!ep.publicIp}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg> Terminal</button>`);
       actions.push(`<button class="btn-action-pill btn-dashboard" data-action="dashboard" data-ip="${esc(connectIp)}" data-name="${esc(ep.name)}" ${ep.dashboardToken ? `data-token="${esc(ep.dashboardToken)}"` : ''}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Dashboard</button>`);
     }
     const actionButtons = actions.join('');
@@ -2417,9 +2421,11 @@ async function startBuild() {
 }
 
 // ── Terminal ─────────────────────────────────────────────────────────────────
-function openTerminal(ip, name) {
+function openTerminal(ip, name, endpointId, hasPublicIp) {
   currentTerminalIp = ip;
   currentTerminalName = name;
+  currentTerminalEndpointId = endpointId || null;
+  currentTerminalHasPublicIp = !!hasPublicIp;
 
   // Update header
   document.getElementById('terminal-title').textContent = `Terminal — ${name} (${ip})`;
@@ -2506,7 +2512,11 @@ function connectTerminalWs(ip) {
   }
 
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${proto}//${window.location.host}/ws/terminal?ip=${encodeURIComponent(ip)}`;
+  let wsUrl = `${proto}//${window.location.host}/ws/terminal?ip=${encodeURIComponent(ip)}`;
+  if (currentTerminalEndpointId) {
+    wsUrl += `&endpointId=${encodeURIComponent(currentTerminalEndpointId)}`;
+    wsUrl += `&hasPublicIp=${currentTerminalHasPublicIp}`;
+  }
 
   terminalWs = new WebSocket(wsUrl);
 
