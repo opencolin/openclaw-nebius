@@ -2,6 +2,13 @@
 
 Everything you need to run [OpenClaw](https://github.com/nichochar/openclaw) AI agents on [Nebius Cloud](https://nebius.com) with inference powered by [Nebius Token Factory](https://tokenfactory.nebius.com).
 
+## Install from ClawHub
+
+| | Install |
+|---|---|
+| **[Token Factory Provider Plugin](https://clawhub.ai/plugins/tokenfactory)** | `openclaw plugins install clawhub:tokenfactory` |
+| **[Nebius Cloud Skill](https://clawhub.ai/plugins/nebius)** | `openclaw skills install clawhub:nebius` |
+
 ## What's in this repo
 
 | Package | What it does |
