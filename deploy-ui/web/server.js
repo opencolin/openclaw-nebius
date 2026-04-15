@@ -999,16 +999,32 @@ app.post('/api/build', requireAuth, (req, res) => {
     return res.status(400).json({ error: `Unknown region: ${region}` });
   }
 
-  // Find registry
+  // Find or create registry
+  const token = getUserToken(req);
   let registryId;
   try {
-    const registries = nebiusJson('registry list', regionConfig.profile);
+    const registries = nebiusJson('registry list', regionConfig.profile, token);
     registryId = registries.items?.[0]?.metadata?.id;
     if (registryId) registryId = registryId.replace(/^registry-/, '');
   } catch (e) {}
 
   if (!registryId) {
-    return res.status(400).json({ error: `No container registry found in ${region}. Create one first.` });
+    try {
+      eventLog.info('BUILD', 'Creating container registry', { region });
+      const projectId = regionConfig.projectId;
+      if (!projectId) {
+        return res.status(400).json({ error: `No project configured for ${region}. Deploy an endpoint first to set up the project.` });
+      }
+      const regResult = nebius(
+        `registry create --name openclaw --parent-id ${projectId} --format json`,
+        null, token
+      );
+      registryId = JSON.parse(regResult).metadata.id;
+      if (registryId) registryId = registryId.replace(/^registry-/, '');
+      eventLog.info('BUILD', 'Container registry created', { registryId, region });
+    } catch (err) {
+      return res.status(500).json({ error: `Failed to create registry in ${region}: ${err.message.split('\n')[0]}` });
+    }
   }
 
   const buildId = `build-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;

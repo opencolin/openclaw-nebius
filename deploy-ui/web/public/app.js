@@ -135,7 +135,9 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── Delegated event listeners (avoids inline onclick with user data) ──────────
 function setupDelegatedListeners() {
   // Endpoint action buttons (Terminal, Dashboard, Delete)
-  document.getElementById('endpoints-list').addEventListener('click', (e) => {
+  const endpointsList = document.getElementById('unified-instances-list') || document.getElementById('endpoints-list');
+  if (!endpointsList) return;
+  endpointsList.addEventListener('click', (e) => {
     // Handle copy button
     const copyBtn = e.target.closest('[data-copy]');
     if (copyBtn) {
