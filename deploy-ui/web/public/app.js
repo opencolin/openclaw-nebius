@@ -1032,11 +1032,7 @@ async function loadRegistryImagesForPicker() {
     }
 
     if (registriesCache.length === 0) {
-      if (state.canOAuth) {
-        list.innerHTML = '<div style="padding:0.5rem"><button class="btn btn-primary btn-sm btn-oauth-login" onclick="loginWithNebius()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> Login with Nebius CLI</button><div class="text-dim" style="font-size:0.75rem;margin-top:0.35rem">Login to see your container registries.</div></div>';
-      } else {
-        list.innerHTML = '<div class="text-dim" style="font-size:0.8rem;padding:0.5rem"><a href="#" onclick="switchPage(\'deploy\');return false">Connect to Registry</a> — connect your Nebius IAM token to see registries.</div>';
-      }
+      list.innerHTML = '<div style="padding:0.5rem"><button class="btn btn-primary btn-sm btn-oauth-login" onclick="loginWithNebius()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> Login with Nebius</button><div class="text-dim" style="font-size:0.75rem;margin-top:0.35rem">Login to see your container registries.</div></div>';
       return;
     }
 
@@ -2262,13 +2258,7 @@ function renderRegistries() {
   const list = document.getElementById('registries-list');
 
   if (registriesCache.length === 0) {
-    if (state.canOAuth) {
-      list.innerHTML = `<div style="padding:0.5rem"><button class="btn btn-primary btn-sm btn-oauth-login" onclick="loginWithNebius()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> Login with Nebius CLI</button><div class="text-dim" style="font-size:0.75rem;margin-top:0.35rem">Login to see your container registries.</div></div>`;
-    } else {
-      list.innerHTML = `<p class="empty-state">
-        No registries found. <a href="#" onclick="switchPage('deploy');return false" style="color:var(--action-blue);font-weight:600">Connect to Registry</a> — connect your Nebius IAM token on the Install page to see your registries.
-      </p>`;
-    }
+    list.innerHTML = `<div style="padding:0.5rem"><button class="btn btn-primary btn-sm btn-oauth-login" onclick="loginWithNebius()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> Login with Nebius</button><div class="text-dim" style="font-size:0.75rem;margin-top:0.35rem">Login to see your container registries.</div></div>`;
     return;
   }
 
