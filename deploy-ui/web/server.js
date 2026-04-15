@@ -867,7 +867,7 @@ app.get('/api/images', (req, res) => {
       name: v.name,
       description: v.description,
       icon: v.icon,
-      sourceUrl: GHCR_IMAGES[k] || null,
+      sourceUrl: null,
       github: k === 'openclaw' ? 'https://github.com/AiChatBot/OpenClaw'
             : k === 'nemoclaw' ? 'https://github.com/NVIDIA/NemoClaw'
             : null
