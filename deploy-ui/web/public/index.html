@@ -58,7 +58,7 @@
             <button class="btn btn-ghost btn-sm" onclick="logout()">Disconnect</button>
           </div>
           <div id="sidebar-footer-disconnected">
-            <button class="btn btn-primary btn-sm sidebar-connect-btn" onclick="state.canOAuth ? loginWithNebius() : switchPage('start')">Login</button>
+            <button class="btn btn-primary btn-sm sidebar-connect-btn" onclick="switchPage('start')">Login</button>
           </div>
         </div>
       </nav>
@@ -143,11 +143,17 @@
                 <div id="gs-iam-token-group" style="margin-top:0.75rem">
                   <div class="iam-token-status" id="gs-iam-token-status"></div>
                   <div class="oauth-login-row" id="gs-oauth-row" style="display:none">
-                    <button class="btn btn-primary btn-oauth-login" onclick="loginWithNebius()">
+                    <button class="btn btn-primary btn-oauth-login" onclick="this.closest('.oauth-login-row').style.display='none';document.getElementById('gs-token-instructions').style.display='';document.getElementById('gs-token-row').style.display=''">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-                      Login with Nebius CLI
+                      Get Access Token
                     </button>
-                    <div class="oauth-fallback"><a href="#" onclick="this.closest('.oauth-login-row').style.display='none';document.getElementById('gs-token-row').style.display='';return false">Or use an access token</a></div>
+                  </div>
+                  <div id="gs-token-instructions" class="token-instructions" style="display:none">
+                    <p>Run this command in your terminal and paste the output below:</p>
+                    <div class="token-cmd-wrap">
+                      <code class="token-cmd">nebius iam get-access-token</code>
+                      <button class="token-copy-btn" onclick="navigator.clipboard.writeText('nebius iam get-access-token')" title="Copy">📋</button>
+                    </div>
                   </div>
                   <div class="api-key-row" id="gs-token-row" style="max-width:500px;display:none">
                     <input type="password" id="gs-iam-token-input" placeholder="Paste access token here" onkeydown="if(event.key==='Enter')submitGsIamToken()" autocomplete="off" />
@@ -496,20 +502,22 @@
                   <label>Nebius IAM Token</label>
                   <div class="iam-token-status" id="iam-token-status"></div>
                   <div class="oauth-login-row" id="deploy-oauth-row" style="display:none">
-                    <button class="btn btn-primary btn-oauth-login" onclick="loginWithNebius()">
+                    <button class="btn btn-primary btn-oauth-login" onclick="this.closest('.oauth-login-row').style.display='none';document.getElementById('deploy-token-instructions').style.display='';document.getElementById('deploy-token-row').style.display=''">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-                      Login with Nebius CLI
+                      Get Access Token
                     </button>
-                    <div class="oauth-fallback"><a href="#" onclick="this.closest('.oauth-login-row').style.display='none';document.getElementById('deploy-token-row').style.display='';document.getElementById('deploy-form-hint').style.display='';return false">Or use an access token</a></div>
+                  </div>
+                  <div id="deploy-token-instructions" class="token-instructions" style="display:none">
+                    <p>Run this command and paste the output below:</p>
+                    <div class="token-cmd-wrap">
+                      <code class="token-cmd">nebius iam get-access-token</code>
+                      <button class="token-copy-btn" onclick="navigator.clipboard.writeText('nebius iam get-access-token')" title="Copy">📋</button>
+                    </div>
                   </div>
                   <div class="api-key-row" id="deploy-token-row" style="display:none">
-                    <input type="password" id="iam-token-input" placeholder="Paste output of: nebius iam get-access-token" onkeydown="if(event.key==='Enter')submitIamToken()" autocomplete="off" />
+                    <input type="password" id="iam-token-input" placeholder="Paste access token here" onkeydown="if(event.key==='Enter')submitIamToken()" autocomplete="off" />
                     <button class="btn btn-sm btn-primary" id="iam-token-submit" onclick="submitIamToken()">Connect</button>
                   </div>
-                  <span class="form-hint" id="deploy-form-hint" style="display:none">
-                    Run <code>nebius iam get-access-token</code> and paste the result above.
-                    Need the CLI? <code>curl -sSL https://storage.eu-north1.nebius.cloud/cli/install.sh | bash</code>
-                  </span>
                 </div>
 
                 <div class="form-group">
@@ -568,19 +576,22 @@
                 <div class="ep-iam-card" id="ep-iam-token-group">
                   <div class="iam-token-status" id="ep-iam-token-status"></div>
                   <div class="oauth-login-row" id="ep-oauth-row" style="display:none">
-                    <button class="btn btn-primary btn-oauth-login" onclick="loginWithNebius()">
+                    <button class="btn btn-primary btn-oauth-login" onclick="this.closest('.oauth-login-row').style.display='none';document.getElementById('ep-token-instructions').style.display='';document.getElementById('ep-token-row').style.display=''">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-                      Login with Nebius CLI
+                      Get Access Token
                     </button>
-                    <div class="oauth-fallback"><a href="#" onclick="this.closest('.oauth-login-row').style.display='none';document.getElementById('ep-token-row').style.display='';document.getElementById('ep-form-hint').style.display='';return false">Or use an access token</a></div>
+                  </div>
+                  <div id="ep-token-instructions" class="token-instructions" style="display:none">
+                    <p>Run this command and paste the output below:</p>
+                    <div class="token-cmd-wrap">
+                      <code class="token-cmd">nebius iam get-access-token</code>
+                      <button class="token-copy-btn" onclick="navigator.clipboard.writeText('nebius iam get-access-token')" title="Copy">📋</button>
+                    </div>
                   </div>
                   <div class="api-key-row" id="ep-token-row" style="display:none">
-                    <input type="password" id="ep-iam-token-input" placeholder="Paste output of: nebius iam get-access-token" onkeydown="if(event.key==='Enter')submitEpIamToken()" autocomplete="off" />
+                    <input type="password" id="ep-iam-token-input" placeholder="Paste access token here" onkeydown="if(event.key==='Enter')submitEpIamToken()" autocomplete="off" />
                     <button class="btn btn-sm btn-primary" id="ep-iam-token-submit" onclick="submitEpIamToken()">Connect</button>
                   </div>
-                  <span class="form-hint" id="ep-form-hint" style="display:none">
-                    Run <code>nebius iam get-access-token</code> and paste the result above.
-                  </span>
                 </div>
               </div>
             </div>

@@ -325,6 +325,16 @@ body {
   margin-bottom: 0.5rem;
 }
 
+.token-instructions {
+  margin-bottom: 0.5rem;
+}
+
+.token-instructions p {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin: 0 0 0.4rem;
+}
+
 .btn-oauth-login {
   display: inline-flex;
   align-items: center;
