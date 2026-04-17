@@ -329,7 +329,23 @@ function loadNebiusConfig() {
 }
 
 const nebiusConfig = IS_VERCEL ? { regions: {}, profiles: {}, tenantId: null } : loadNebiusConfig();
+
+// Always ensure all standard regions are available — don't require region-named CLI profiles.
+// If the user's config has a profile like "eventsea" instead of "eu-north1", we still expose
+// all three regions and use whatever profile exists for CLI auth.
 const REGIONS = nebiusConfig.regions;
+if (!IS_VERCEL) {
+  const fallbackProfile = Object.values(nebiusConfig.profiles)[0] || null;
+  for (const [regionKey, meta] of Object.entries(REGION_META)) {
+    if (!REGIONS[regionKey]) {
+      REGIONS[regionKey] = { ...meta, projectId: null };
+      if (fallbackProfile && !nebiusConfig.profiles[regionKey]) {
+        nebiusConfig.profiles[regionKey] = fallbackProfile;
+      }
+    }
+  }
+}
+
 const REGION_PROFILES = nebiusConfig.profiles;
 const TENANT_ID = nebiusConfig.tenantId;
 
@@ -380,8 +396,8 @@ const DEMO_ENDPOINTS = [
 // ── Image config ──────────────────────────────────────────────────────────
 // Public GHCR images (fallback if user's registry doesn't have the image)
 const GHCR_IMAGES = {
-  openclaw: 'ghcr.io/colygon/openclaw-serverless:latest',
-  nemoclaw: 'ghcr.io/colygon/nemoclaw-serverless:latest'
+  openclaw: 'ghcr.io/opencolin/openclaw-serverless:latest',
+  nemoclaw: 'ghcr.io/opencolin/nemoclaw-serverless:latest'
 };
 
 const IMAGES = {
@@ -824,7 +840,13 @@ app.put('/api/secrets/:id', requireAuth, (req, res) => {
 // ── Routes: Config ─────────────────────────────────────────────────────────
 
 app.get('/api/regions', (req, res) => {
-  res.json(IS_VERCEL ? DEMO_REGIONS : REGIONS);
+  if (IS_VERCEL) return res.json(DEMO_REGIONS);
+  // Only expose known standard regions (filter out any CLI profile aliases like "eventsea")
+  const filtered = {};
+  for (const key of Object.keys(REGION_META)) {
+    if (REGIONS[key]) filtered[key] = REGIONS[key];
+  }
+  res.json(filtered);
 });
 
 app.get('/api/projects/:region', requireAuth, (req, res) => {
@@ -1134,7 +1156,7 @@ app.get('/api/build/source/:type', requireAuth, (req, res) => {
     const entryMatch = script.match(/cat > [^\n]*entrypoint\.sh[^\n]*<<\s*'ENTRYPOINT'\n([\s\S]*?)\nENTRYPOINT/);
     const entrypoint = entryMatch ? entryMatch[1] : null;
 
-    const repo = 'https://github.com/colygon/openclaw-nebius';
+    const repo = 'https://github.com/opencolin/openclaw-nebius';
 
     res.json({ dockerfile, entrypoint, scriptPath: `install-${type}-serverless.sh`, repo });
   } catch (e) {

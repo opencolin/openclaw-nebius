@@ -20,7 +20,7 @@ function grepTrackedFiles(pattern: string): string[] {
 }
 
 describe("no stale references", () => {
-  it("no references to old GitHub username 'colygon'", () => {
+  it("no references to old GitHub username 'opencolin' predecessor 'colygon'", () => {
     const matches = grepTrackedFiles("colygon");
     expect(matches, `Found stale 'colygon' references:\n${matches.join("\n")}`).toHaveLength(0);
   });

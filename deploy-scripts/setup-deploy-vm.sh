@@ -73,7 +73,7 @@ if [ -d "$INSTALL_DIR" ]; then
   git pull
 else
   warn "Cloning OpenClaw Deploy..."
-  git clone https://github.com/colygon/openclaw-nebius.git "$INSTALL_DIR"
+  git clone https://github.com/opencolin/openclaw-nebius.git "$INSTALL_DIR"
   cd "$INSTALL_DIR"
 fi
 info "Code ready at $INSTALL_DIR"

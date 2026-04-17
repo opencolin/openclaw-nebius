@@ -29,7 +29,7 @@ docker run -e TOKEN_FACTORY_API_KEY={your-key} \
   -e INFERENCE_MODEL=zai-org/GLM-5 \
   -e OPENCLAW_WEB_PASSWORD={your-password} \
   -p 8080:8080 -p 18789:18789 \
-  ghcr.io/colygon/openclaw-serverless:latest
+  ghcr.io/opencolin/openclaw-serverless:latest
 ```
 
 **Path 4 — Nebius CPU Serverless (3 minutes):**
@@ -56,8 +56,8 @@ export TOKEN_FACTORY_API_KEY={your-key}
 ## Public Docker Images
 
 ```bash
-docker pull ghcr.io/colygon/openclaw-serverless:latest   # ~400 MB
-docker pull ghcr.io/colygon/nemoclaw-serverless:latest   # ~1.1 GB
+docker pull ghcr.io/opencolin/openclaw-serverless:latest   # ~400 MB
+docker pull ghcr.io/opencolin/nemoclaw-serverless:latest   # ~1.1 GB
 ```
 
 ## Related Packages

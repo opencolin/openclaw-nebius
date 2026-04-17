@@ -12,3 +12,7 @@ dist/
 .vercel
 endpoint-passwords.json
 web/data/sessions/
+.next/
+claw-copilot/.next/
+music-player-app/music/
+.claude/launch.json

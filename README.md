@@ -1,19 +1,21 @@
 # OpenClaw + Nebius
 
-Everything you need to run [OpenClaw](https://github.com/nichochar/openclaw) AI agents on [Nebius Cloud](https://nebius.com) with inference powered by [Nebius Token Factory](https://tokenfactory.nebius.com).
+Everything you need to run [OpenClaw](https://github.com/opencolin/openclaw) AI agents on [Nebius Cloud](https://nebius.com) with inference powered by [Nebius Token Factory](https://tokenfactory.nebius.com).
+
+> **Fork:** [github.com/opencolin/openclaw](https://github.com/opencolin/openclaw) — Nebius Token Factory built in as a first-class provider alongside Anthropic, OpenAI, DeepSeek, and the rest.
 
 ## Install from ClawHub
 
 | | Install |
 |---|---|
 | **[Token Factory Provider Plugin](https://clawhub.ai/plugins/tokenfactory)** | `openclaw plugins install clawhub:tokenfactory` |
-| **[Nebius Cloud Skill](https://clawhub.ai/plugins/nebius)** | `openclaw skills install clawhub:nebius` |
+| **[Nebius Cloud Skill](https://clawhub.ai/plugins/nebius)** | `openclaw skills install nebius` |
 
 ## What's in this repo
 
 | Package | What it does |
 |---|---|
-| **[`tokenfactory-plugin`](tokenfactory-plugin)** | [Token Factory Provider Plugin](https://clawhub.ai/plugins/tokenfactory) -- adds 44+ open-source models (Qwen, DeepSeek, Llama, GLM, FLUX, etc.) via Nebius Token Factory |
+| **[`tokenfactory-plugin`](tokenfactory-plugin)** | [Token Factory Provider Plugin](https://clawhub.ai/plugins/tokenfactory) -- adds 40+ open-source models (Qwen, DeepSeek, Llama, GLM, FLUX, etc.) via Nebius Token Factory |
 | **[`nebius-skill`](nebius-skill)** | [Nebius Cloud Skill](https://clawhub.ai/plugins/nebius) -- deploy and manage Nebius infrastructure from your terminal |
 | **[`deploy-ui`](deploy-ui)** | Web UI for deploying OpenClaw to Nebius |
 | **[`deploy-scripts`](deploy-scripts)** | Shell scripts, Dockerfile, and configs for Nebius infrastructure automation |
@@ -37,7 +39,7 @@ Then follow the [plugin setup guide](tokenfactory-plugin/SETUP.md) to configure 
 Run the Deploy UI locally:
 
 ```bash
-git clone https://github.com/colygon/openclaw-nebius.git
+git clone https://github.com/opencolin/openclaw-nebius.git
 cd openclaw-nebius
 npm install
 npm run dev:deploy
@@ -50,7 +52,7 @@ Then open **http://localhost:3000** and follow the wizard. It handles regions, p
 Install the Nebius skill for Claude Code:
 
 ```bash
-git clone https://github.com/colygon/openclaw-nebius.git /tmp/openclaw-nebius
+git clone https://github.com/opencolin/openclaw-nebius.git /tmp/openclaw-nebius
 cp -r /tmp/openclaw-nebius/nebius-skill ~/.claude/skills/nebius
 ```
 
@@ -102,8 +104,8 @@ Get your key at [studio.nebius.ai](https://studio.nebius.ai/). Keys look like `v
 ### Pre-built Docker Images
 
 ```bash
-docker pull ghcr.io/colygon/openclaw-serverless:latest   # ~400 MB, CPU
-docker pull ghcr.io/colygon/nemoclaw-serverless:latest   # ~1.1 GB, GPU-ready
+docker pull ghcr.io/opencolin/openclaw-serverless:latest   # ~400 MB, CPU
+docker pull ghcr.io/opencolin/nemoclaw-serverless:latest   # ~1.1 GB, GPU-ready
 ```
 
 ## Development

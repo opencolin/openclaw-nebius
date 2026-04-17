@@ -30,7 +30,7 @@ Navigate to **Serverless AI -> Create endpoint** and configure:
 
 | Field | Value |
 |-------|-------|
-| **Image** | `ghcr.io/colygon/nemoclaw-serverless:latest` |
+| **Image** | `ghcr.io/opencolin/nemoclaw-serverless:latest` |
 | **Platform** | GPU platform (e.g., `gpu-h100-b`) |
 | **Preset** | Select based on model size |
 | **Ports** | `8080`, `18789` |
@@ -43,7 +43,7 @@ Navigate to **Serverless AI -> Create endpoint** and configure:
 ```bash
 nebius ai endpoint create \
   --name nemoclaw-gpu \
-  --image ghcr.io/colygon/nemoclaw-serverless:latest \
+  --image ghcr.io/opencolin/nemoclaw-serverless:latest \
   --platform gpu-h100-b \
   --preset 1gpu-16vcpu-200gb \
   --container-port 8080 \

@@ -4,7 +4,7 @@
 
 Nebius AI Cloud is a GPU-first cloud platform with H100, H200, B200, and B300 GPUs across three regions (eu-north1, eu-west1, us-central1). The most common use case is deploying AI agents or ML models as serverless endpoints using `nebius ai endpoint create`.
 
-This skill is part of the [openclaw-nebius](https://github.com/colygon/openclaw-nebius) monorepo, which includes a Token Factory provider plugin, a deployment web UI, and infrastructure automation scripts.
+This skill is part of the [openclaw-nebius](https://github.com/opencolin/openclaw-nebius) monorepo, which includes a Token Factory provider plugin, a deployment web UI, and infrastructure automation scripts.
 
 ## Setup
 
@@ -128,20 +128,20 @@ Token Factory URL: EU uses `https://api.tokenfactory.nebius.com/v1`, US uses `ht
 
 ## Documentation
 
-- [SKILL.md (full skill reference)](https://github.com/colygon/openclaw-nebius/blob/main/nebius-skill/SKILL.md): Complete Nebius CLI skill with all services, conventions, and deployment steps
-- [Deploy OpenClaw guide](https://github.com/colygon/openclaw-nebius/blob/main/nebius-skill/examples/deploy-openclaw.md): Step-by-step OpenClaw/NemoClaw deployment walkthrough
-- [Deploy serverless endpoint](https://github.com/colygon/openclaw-nebius/blob/main/nebius-skill/examples/deploy-serverless-endpoint.md): Deploy a custom AI agent as a serverless endpoint
-- [Deploy GPU VM](https://github.com/colygon/openclaw-nebius/blob/main/nebius-skill/examples/deploy-gpu-vm.md): Deploy a GPU VM with vLLM for self-hosted inference
+- [SKILL.md (full skill reference)](https://github.com/opencolin/openclaw-nebius/blob/main/nebius-skill/SKILL.md): Complete Nebius CLI skill with all services, conventions, and deployment steps
+- [Deploy OpenClaw guide](https://github.com/opencolin/openclaw-nebius/blob/main/nebius-skill/examples/deploy-openclaw.md): Step-by-step OpenClaw/NemoClaw deployment walkthrough
+- [Deploy serverless endpoint](https://github.com/opencolin/openclaw-nebius/blob/main/nebius-skill/examples/deploy-serverless-endpoint.md): Deploy a custom AI agent as a serverless endpoint
+- [Deploy GPU VM](https://github.com/opencolin/openclaw-nebius/blob/main/nebius-skill/examples/deploy-gpu-vm.md): Deploy a GPU VM with vLLM for self-hosted inference
 
 ## Optional
 
-- [AI Endpoints reference](https://github.com/colygon/openclaw-nebius/blob/main/nebius-skill/references/ai-endpoints-reference.md): Detailed `nebius ai endpoint` commands and parameters
-- [Compute reference](https://github.com/colygon/openclaw-nebius/blob/main/nebius-skill/references/compute-reference.md): VM creation, GPU presets, disk configuration
-- [Kubernetes reference](https://github.com/colygon/openclaw-nebius/blob/main/nebius-skill/references/kubernetes-reference.md): Managed Kubernetes (mk8s) cluster setup
-- [Container Registry reference](https://github.com/colygon/openclaw-nebius/blob/main/nebius-skill/references/registry-reference.md): Build and push container images
-- [Networking reference](https://github.com/colygon/openclaw-nebius/blob/main/nebius-skill/references/networking-reference.md): VPC networks, subnets, security groups
-- [IAM reference](https://github.com/colygon/openclaw-nebius/blob/main/nebius-skill/references/iam-reference.md): Service accounts, access keys, group membership
-- [API/SDK reference](https://github.com/colygon/openclaw-nebius/blob/main/nebius-skill/references/api-reference.md): Go SDK, Python SDK, Terraform, gRPC
-- [Token Factory plugin](https://github.com/colygon/openclaw-nebius/blob/main/tokenfactory-plugin): OpenClaw provider plugin for 44+ open-source models via Nebius
+- [AI Endpoints reference](https://github.com/opencolin/openclaw-nebius/blob/main/nebius-skill/references/ai-endpoints-reference.md): Detailed `nebius ai endpoint` commands and parameters
+- [Compute reference](https://github.com/opencolin/openclaw-nebius/blob/main/nebius-skill/references/compute-reference.md): VM creation, GPU presets, disk configuration
+- [Kubernetes reference](https://github.com/opencolin/openclaw-nebius/blob/main/nebius-skill/references/kubernetes-reference.md): Managed Kubernetes (mk8s) cluster setup
+- [Container Registry reference](https://github.com/opencolin/openclaw-nebius/blob/main/nebius-skill/references/registry-reference.md): Build and push container images
+- [Networking reference](https://github.com/opencolin/openclaw-nebius/blob/main/nebius-skill/references/networking-reference.md): VPC networks, subnets, security groups
+- [IAM reference](https://github.com/opencolin/openclaw-nebius/blob/main/nebius-skill/references/iam-reference.md): Service accounts, access keys, group membership
+- [API/SDK reference](https://github.com/opencolin/openclaw-nebius/blob/main/nebius-skill/references/api-reference.md): Go SDK, Python SDK, Terraform, gRPC
+- [Token Factory plugin](https://github.com/opencolin/openclaw-nebius/blob/main/tokenfactory-plugin): OpenClaw provider plugin for 44+ open-source models via Nebius
 - [Nebius CLI docs](https://docs.nebius.com/cli/configure): Official CLI configuration documentation
 - [Token Factory](https://tokenfactory.nebius.com): Get your Token Factory API key

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AfroHouse Music Player</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AfroHouse Music Player</h1>
+            <div class="style-selector">
+                <label for="musicStyle">Select Music Style:</label>
+                <select id="musicStyle">
+                    <option value="afrohouse">AfroHouse</option>
+                    <option value="frenchhouse">French House</option>
+                    <option value="tropicalhouse">Tropical House</option>
+                </select>
+            </div>
+        </header>
+
+        <main>
+            <div class="player">
+                <div class="album-art">
+                    <img src="album-art.jpg" alt="Album Art">
+                </div>
+                <div class="controls">
+                    <button id="playPause" class="play-pause">Play</button>
+                    <button id="stop" class="stop">Stop</button>
+                    <input type="range" id="volume" min="0" max="100" value="70">
+                    <span class="volume-label">Volume: <span id="volumeValue">70</span>%</span>
+                </div>
+                <div class="track-info">
+                    <p id="currentTrack">No track selected</p>
+                    <p id="currentStyle">Style: AfroHouse</p>
+                </div>
+            </div>
+
+            <div class="music-library">
+                <h2>Music Library</h2>
+                <div id="library" class="library-grid"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
