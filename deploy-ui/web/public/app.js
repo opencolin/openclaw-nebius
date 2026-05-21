@@ -213,9 +213,41 @@ function setupDelegatedListeners() {
 
 }
 
+// ── CSRF token helper ────────────────────────────────────────────────────────
+// The server sets a `csrf` cookie. State-changing API requests must echo
+// that value in the `x-csrf-token` header (double-submit cookie pattern).
+function _csrfToken() {
+  const m = document.cookie.match(/(?:^|;\s*)csrf=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
+// Globally wrap fetch so every non-GET to a same-origin URL carries the CSRF
+// header automatically. This means individual call sites don't have to be
+// patched one by one.
+(function patchFetchOnce() {
+  if (window.__csrfFetchPatched) return;
+  window.__csrfFetchPatched = true;
+  const orig = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    const method = (init?.method || (typeof input === 'object' && input.method) || 'GET').toUpperCase();
+    if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+      const url = typeof input === 'string' ? input : input?.url || '';
+      // Only attach to same-origin requests
+      const sameOrigin = !/^https?:\/\//i.test(url) || url.startsWith(window.location.origin);
+      if (sameOrigin) {
+        const headers = new Headers(init?.headers || (typeof input === 'object' ? input.headers : undefined));
+        if (!headers.has('x-csrf-token')) headers.set('x-csrf-token', _csrfToken());
+        init = { ...(init || {}), headers };
+      }
+    }
+    return orig(input, init);
+  };
+})();
+
 // ── Auth-aware fetch (auto re-authenticates on 401) ─────────────────────────
 async function authFetch(url, options = {}) {
-  let res = await fetch(url, options);
+  const opts = options;
+  let res = await fetch(url, opts);
   if (res.status === 401) {
     try {
       const body = await res.clone().json();
@@ -230,7 +262,7 @@ async function authFetch(url, options = {}) {
     const authRes = await fetch('/api/auth/status');
     const authData = await authRes.json();
     if (authData.authenticated) {
-      res = await fetch(url, options);
+      res = await fetch(url, opts);
     } else {
       state.authenticated = false;
       updateIamStatus(false, null, 'Not authenticated — connect your Nebius token to continue.');

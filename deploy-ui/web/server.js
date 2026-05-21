@@ -7,7 +7,11 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const WebSocket = require('ws');
-const fetch = require('node-fetch');
+// Use Node 18+ built-in fetch — drops the node-fetch dependency and the
+// `punycode` deprecation warning it pulled in.
+if (typeof fetch === 'undefined') {
+  throw new Error('Node 18+ required (no built-in fetch detected)');
+}
 const yaml = require('js-yaml');
 
 const app = express();
@@ -37,14 +41,60 @@ function validateIp(value) {
 // Set SESSION_SECRET env var for persistent sessions across restarts
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 
-app.use(express.json());
+app.use(express.json({ limit: '256kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ── Basic security headers (poor-man's helmet) ─────────────────────────────
+// We don't pull in `helmet` to keep the dependency surface tiny. These are
+// the headers that actually matter for this app:
+//   - CSP: blocks inline-script XSS and limits where assets can come from.
+//     We allow Google Fonts and jsDelivr (xterm.css). 'unsafe-inline' for
+//     <style> is permitted because the existing CSS uses inline styles in
+//     dynamic markup; tightening that later is an XSS hardening follow-up.
+//   - HSTS: only emit on HTTPS (when COOKIE_SECURE is on).
+//   - Referrer-Policy: don't leak deploy URLs to upstream link sinks.
+//   - Permissions-Policy: turn off features we never use.
+const CSP_VALUE = [
+  "default-src 'self'",
+  "img-src 'self' data: https:",
+  // 'unsafe-inline' kept for the small inline theme bootstrap script in index.html;
+  // 'unsafe-eval' is intentionally omitted.
+  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+  "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net",
+  // Connect: self + websocket + token-factory + openrouter + huggingface (for in-browser chat)
+  "connect-src 'self' ws: wss: https://api.tokenfactory.nebius.com https://api.tokenfactory.us-central1.nebius.com https://openrouter.ai https://api-inference.huggingface.co",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+].join('; ');
+
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy', CSP_VALUE);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  if (COOKIE_SECURE) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  next();
+});
 
 // Ensure sessions directory exists for file-based persistence
 const sessionsDir = path.join(__dirname, 'data', 'sessions');
 if (!IS_VERCEL && !fs.existsSync(sessionsDir)) {
   fs.mkdirSync(sessionsDir, { recursive: true });
 }
+
+// Warn loudly when SESSION_SECRET is auto-generated in production — it means
+// every restart invalidates sessions, and there's no way to share state across
+// workers/replicas.
+if (!process.env.SESSION_SECRET && (process.env.NODE_ENV === 'production' || IS_VERCEL)) {
+  console.warn('[SYSTEM] WARNING: SESSION_SECRET is not set; sessions will not persist across restarts');
+}
+
+const COOKIE_SECURE = process.env.NODE_ENV === 'production' || IS_VERCEL ||
+                     process.env.COOKIE_SECURE === 'true';
 
 const sessionMiddleware = session({
   store: IS_VERCEL ? undefined : new FileStore({
@@ -56,9 +106,64 @@ const sessionMiddleware = session({
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false, httpOnly: true, sameSite: 'lax', maxAge: 24 * 60 * 60 * 1000 }
+  name: 'oclaw.sid', // avoid the default `connect.sid` fingerprint
+  cookie: {
+    secure: COOKIE_SECURE,
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 24 * 60 * 60 * 1000
+  }
 });
 app.use(sessionMiddleware);
+
+// ── CSRF protection (double-submit cookie) ─────────────────────────────────
+// Strategy: on every request, ensure a `csrf` cookie exists holding a random
+// token. State-changing requests (POST/PUT/PATCH/DELETE) must echo that same
+// token in the `x-csrf-token` header. Because cookies obey the same-origin
+// policy, an attacker on another origin can't read the cookie value to send
+// the matching header — even though the browser will still send the cookie.
+function generateCsrfToken() {
+  return crypto.randomBytes(24).toString('base64url');
+}
+
+app.use((req, res, next) => {
+  // Refresh cookie if missing or malformed
+  let token = req.cookies?.csrf; // (cookie-parser isn't installed; we parse manually below)
+  if (!token) {
+    // Minimal cookie parse
+    const raw = req.headers.cookie || '';
+    const m = raw.match(/(?:^|;\s*)csrf=([A-Za-z0-9_=-]{8,128})/);
+    token = m ? m[1] : null;
+  }
+  if (!token || !/^[A-Za-z0-9_=-]{8,128}$/.test(token)) {
+    token = generateCsrfToken();
+    res.cookie?.('csrf', token, { secure: COOKIE_SECURE, sameSite: 'lax', maxAge: 86400000 }) ||
+      res.setHeader('Set-Cookie', `csrf=${token}; Path=/; SameSite=Lax; Max-Age=86400${COOKIE_SECURE ? '; Secure' : ''}`);
+  }
+  req.csrfToken = token;
+  next();
+});
+
+// Expose the current CSRF token to the SPA so it can echo it back.
+app.get('/api/csrf', (req, res) => res.json({ token: req.csrfToken }));
+
+// Enforce token on state-changing API + admin routes.
+const CSRF_EXEMPT_PATHS = new Set([
+  '/api/auth/status', '/api/auth/can-oauth', '/api/csrf',
+]);
+app.use((req, res, next) => {
+  const m = req.method;
+  if (m === 'GET' || m === 'HEAD' || m === 'OPTIONS') return next();
+  // Only enforce on JSON API surfaces. WebSocket upgrades don't go through here.
+  if (!req.path.startsWith('/api/') && !req.path.startsWith('/admin/api/')) return next();
+  if (CSRF_EXEMPT_PATHS.has(req.path)) return next();
+
+  const header = req.headers['x-csrf-token'];
+  if (!header || !safeEqual(String(header), req.csrfToken || '')) {
+    return res.status(403).json({ error: 'CSRF token missing or invalid' });
+  }
+  next();
+});
 
 // ── CLI Login Helper ─────────────────────────────────────────────────────
 // Instead of OAuth, we run `nebius iam get-access-token` on the server.
@@ -78,7 +183,27 @@ const SENSITIVE_KEYS = new Set([
   'TOKEN_FACTORY_API_KEY', 'OPENCLAW_WEB_PASSWORD',
   'OPENROUTER_API_KEY', 'HUGGINGFACE_API_KEY', 'HF_TOKEN',
   'webPassword', 'gatewayToken', 'authToken',
+  // User-scoped IAM tokens — never log
+  'nebiusToken', 'iamToken', 'accessToken',
+  'NEBIUS_IAM_TOKEN', 'IAM_TOKEN', 'TAVILY_API_KEY',
+  // Tokens that pass through CLI errors
+  'Authorization', 'authorization', 'cookie', 'Cookie',
 ]);
+
+// Redact bearer tokens and IAM tokens that appear inside free-form strings
+// (error messages, CLI stderr) before they end up in logs.
+const TOKEN_PATTERNS = [
+  /Bearer\s+[A-Za-z0-9._~+/=-]{20,}/gi,
+  /(NEBIUS_IAM_TOKEN|IAM_TOKEN|TOKEN_FACTORY_API_KEY|OPENROUTER_API_KEY|HF_TOKEN|HUGGINGFACE_API_KEY|TAVILY_API_KEY|OPENCLAW_WEB_PASSWORD)=([^\s"']+)/g,
+];
+function redactString(s) {
+  if (typeof s !== 'string') return s;
+  let out = s;
+  for (const re of TOKEN_PATTERNS) {
+    out = out.replace(re, (m, k) => k ? `${k}=[REDACTED]` : '[REDACTED]');
+  }
+  return out;
+}
 
 function sanitizeContext(ctx) {
   if (!ctx || typeof ctx !== 'object') return ctx;
@@ -88,6 +213,9 @@ function sanitizeContext(ctx) {
       out[k] = '[REDACTED]';
     } else if (typeof v === 'string' && v.length > 80 && /key|token|secret|password/i.test(k)) {
       out[k] = '[REDACTED]';
+    } else if (typeof v === 'string') {
+      // Scrub any embedded bearer tokens / IAM tokens that snuck into a message
+      out[k] = redactString(v);
     } else if (v && typeof v === 'object') {
       out[k] = sanitizeContext(v);
     } else {
@@ -160,15 +288,27 @@ function parseBrowser(ua) {
   return 'other';
 }
 
+// Caps so a sustained spider/probe can't grow analytics indefinitely.
+const ANALYTICS_MAX_VISITORS_PER_DAY = 50_000;
+const ANALYTICS_MAX_PAGE_KEYS = 5_000;
+const ANALYTICS_TRACKED_PATH_MAX = 256;
+
 function trackPageView(req) {
   const day = dayBucket(analyticsToday());
   const hash = hashVisitor(req.ip || req.connection?.remoteAddress || '?');
   day.pageViews++;
-  if (!day._vSet.has(hash)) { day._vSet.add(hash); day.visitors.push(hash); }
-  const pg = req.path.replace(/\?.*/,'');
-  day.pages[pg] = (day.pages[pg] || 0) + 1;
-  day.browsers[parseBrowser(req.headers['user-agent'])] =
-    (day.browsers[parseBrowser(req.headers['user-agent'])] || 0) + 1;
+  if (!day._vSet.has(hash) && day.visitors.length < ANALYTICS_MAX_VISITORS_PER_DAY) {
+    day._vSet.add(hash);
+    day.visitors.push(hash);
+  }
+  // Keep tracked paths short; otherwise scrapers hammering random URLs blow up the dict.
+  let pg = req.path.replace(/\?.*/, '');
+  if (pg.length > ANALYTICS_TRACKED_PATH_MAX) pg = pg.slice(0, ANALYTICS_TRACKED_PATH_MAX);
+  if (day.pages[pg] !== undefined || Object.keys(day.pages).length < ANALYTICS_MAX_PAGE_KEYS) {
+    day.pages[pg] = (day.pages[pg] || 0) + 1;
+  }
+  const br = parseBrowser(req.headers['user-agent']);
+  day.browsers[br] = (day.browsers[br] || 0) + 1;
 }
 
 function trackLogin(ok)  { const d = dayBucket(analyticsToday()); ok ? d.logins++ : d.loginFails++; }
@@ -210,7 +350,11 @@ function saveAnalytics() {
       out.days[date] = rest;
     }
     fs.mkdirSync(path.dirname(ANALYTICS_FILE), { recursive: true });
-    fs.writeFileSync(ANALYTICS_FILE, JSON.stringify(out));
+    // Atomic write — write to tmp then rename so we never leave a half-written
+    // file on disk if the process crashes mid-write.
+    const tmp = `${ANALYTICS_FILE}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(out));
+    fs.renameSync(tmp, ANALYTICS_FILE);
   } catch (e) {
     eventLog.warn('SYSTEM', 'Failed to save analytics', { error: e.message });
   }
@@ -285,15 +429,23 @@ function loadNebiusConfig() {
         profileName === r || profileName.includes(r)
       );
 
-      // If no region match, try to detect region from the project
-      if (!regionKey) {
+      // If no region match, try to detect region from the project.
+      // Validate the inputs so we never construct a CLI invocation from
+      // arbitrary YAML profile/project names.
+      if (!regionKey && /^[a-zA-Z0-9_-]+$/.test(profileName) && /^project-[a-zA-Z0-9_-]+$/.test(parentId)) {
         try {
-          const projInfo = JSON.parse(
-            execSync(`nebius --profile ${profileName} iam project get --id ${parentId} --format json`, { encoding: 'utf-8', timeout: 10000 })
-          );
-          const detectedRegion = projInfo.status?.region || projInfo.spec?.region;
-          if (detectedRegion && REGION_META[detectedRegion]) {
-            regionKey = detectedRegion;
+          const r = require('child_process').spawnSync('nebius', [
+            '--profile', profileName,
+            'iam', 'project', 'get',
+            '--id', parentId,
+            '--format', 'json',
+          ], { encoding: 'utf-8', timeout: 10000 });
+          if (r.status === 0) {
+            const projInfo = JSON.parse(r.stdout);
+            const detectedRegion = projInfo.status?.region || projInfo.spec?.region;
+            if (detectedRegion && REGION_META[detectedRegion]) {
+              regionKey = detectedRegion;
+            }
           }
         } catch (e) {
           // Fall back to profile name
@@ -435,6 +587,51 @@ function requireAuth(req, res, next) {
   next();
 }
 
+// ── Tiny in-memory rate limiter ─────────────────────────────────────────────
+// Per-IP token bucket with a fixed sliding window. No external dep — good
+// enough to throttle login brute force and unauth endpoint probing.
+const _rateBuckets = new Map(); // key -> { count, resetAt }
+const RATE_LIMITER_MAX_KEYS = 10_000;
+
+function rateLimit({ windowMs, max, keyBy = (req) => req.ip, message } = {}) {
+  return (req, res, next) => {
+    const key = `${windowMs}:${max}:${keyBy(req) || 'unknown'}`;
+    const now = Date.now();
+    let bucket = _rateBuckets.get(key);
+    if (!bucket || now > bucket.resetAt) {
+      bucket = { count: 0, resetAt: now + windowMs };
+      _rateBuckets.set(key, bucket);
+    }
+    bucket.count++;
+    // Cheap eviction: drop the map once it gets too large
+    if (_rateBuckets.size > RATE_LIMITER_MAX_KEYS) {
+      for (const [k, b] of _rateBuckets) {
+        if (now > b.resetAt) _rateBuckets.delete(k);
+      }
+    }
+    if (bucket.count > max) {
+      const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+      res.setHeader('Retry-After', String(retryAfter));
+      return res.status(429).json({ error: message || 'Too many requests', retryAfter });
+    }
+    next();
+  };
+}
+
+// Constant-time string compare. Returns false if lengths differ (still constant
+// time on equal-length inputs).
+function safeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const ab = Buffer.from(a, 'utf8');
+  const bb = Buffer.from(b, 'utf8');
+  if (ab.length !== bb.length) {
+    // Still do a fixed-length compare so timing doesn't leak the length
+    crypto.timingSafeEqual(ab, ab);
+    return false;
+  }
+  return crypto.timingSafeEqual(ab, bb);
+}
+
 // ── SSH key finder ─────────────────────────────────────────────────────────
 // ── Crustacean name generator ─────────────────────────────────────────────
 const CRUSTACEAN_ADJECTIVES = [
@@ -526,6 +723,74 @@ function nebiusExecEnv(iamToken) {
   return env;
 }
 
+// ── Safe spawn helpers (no shell, no string interpolation) ─────────────────
+// All routes that mix user input into a CLI call MUST go through these.
+
+// Async spawn that resolves with { code, stdout, stderr } and never throws on
+// non-zero exit (caller decides). Always uses an argv array — never a shell.
+function spawnCapture(cmd, args, opts = {}) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(cmd, args, {
+      env: opts.env || process.env,
+      cwd: opts.cwd,
+      timeout: opts.timeout,
+      shell: false, // explicit
+    });
+    let stdout = '';
+    let stderr = '';
+    const maxBuf = opts.maxBuffer || 10 * 1024 * 1024;
+    let truncated = false;
+    proc.stdout?.on('data', (d) => {
+      if (stdout.length < maxBuf) stdout += d.toString('utf8');
+      else truncated = true;
+    });
+    proc.stderr?.on('data', (d) => {
+      if (stderr.length < maxBuf) stderr += d.toString('utf8');
+      else truncated = true;
+    });
+    proc.on('error', reject);
+    proc.on('close', (code, signal) => {
+      resolve({ code, signal, stdout, stderr, truncated });
+    });
+  });
+}
+
+// Run `nebius <args>` with argv array (no shell). Returns trimmed stdout or
+// throws an Error with the (redacted) stderr.
+async function nebiusSafe(args, { profile, iamToken, timeout = 30000 } = {}) {
+  if (profile && !/^[a-zA-Z0-9_-]+$/.test(profile)) {
+    throw new Error('Invalid profile name');
+  }
+  const finalArgs = profile ? ['--profile', profile, ...args] : args;
+  const start = Date.now();
+  const cmdLabel = `nebius ${finalArgs.slice(0, 4).join(' ')}`;
+  try {
+    const { code, stdout, stderr } = await spawnCapture('nebius', finalArgs, {
+      env: nebiusExecEnv(iamToken),
+      timeout,
+    });
+    if (code !== 0) {
+      const msg = redactString(stderr || `exit ${code}`);
+      emitEvent('error', 'NEBIUS', `CLI error: ${cmdLabel}`, {
+        duration: Date.now() - start, profile: profile || null, error: msg,
+      });
+      throw new Error(msg);
+    }
+    emitEvent('debug', 'NEBIUS', cmdLabel, { duration: Date.now() - start, profile: profile || null });
+    return stdout.trim();
+  } catch (err) {
+    if (err.message?.includes('timed out')) {
+      throw new Error(`nebius command timed out after ${timeout}ms`);
+    }
+    throw err;
+  }
+}
+
+async function nebiusJsonSafe(args, opts) {
+  const raw = await nebiusSafe([...args, '--format', 'json'], opts);
+  return JSON.parse(raw);
+}
+
 // Extract user's Nebius IAM token from session (null = use service account)
 function getUserToken(req) {
   return req.session?.nebiusToken || null;
@@ -533,18 +798,37 @@ function getUserToken(req) {
 
 // ── Deploy-time secrets (password stored per endpoint name) ────────────────
 const MAX_PASSWORDS = 200;
-const PASSWORDS_FILE = path.join(__dirname, '..', 'endpoint-passwords.json');
+// Stored inside web/data/ (gitignored) so secrets never sit in the repo root.
+// On Vercel, the filesystem is read-only/ephemeral, so persistence is a no-op.
+const PASSWORDS_FILE = path.join(__dirname, 'data', 'endpoint-passwords.json');
+const LEGACY_PASSWORDS_FILE = path.join(__dirname, '..', 'endpoint-passwords.json');
 const endpointPasswords = {}; // { endpointName: password }
 
 // Load saved passwords from disk on startup
-try {
-  if (fs.existsSync(PASSWORDS_FILE)) {
-    const saved = JSON.parse(fs.readFileSync(PASSWORDS_FILE, 'utf-8'));
-    Object.assign(endpointPasswords, saved);
-    eventLog.info('SYSTEM', 'Endpoint passwords loaded', { count: Object.keys(saved).length });
+if (!IS_VERCEL) {
+  try {
+    fs.mkdirSync(path.dirname(PASSWORDS_FILE), { recursive: true });
+    // Restrict directory perms (best-effort; ignored on Windows)
+    try { fs.chmodSync(path.dirname(PASSWORDS_FILE), 0o700); } catch (_) {}
+
+    // One-time migration: move any legacy file from repo root into web/data/
+    if (fs.existsSync(LEGACY_PASSWORDS_FILE) && !fs.existsSync(PASSWORDS_FILE)) {
+      try {
+        fs.renameSync(LEGACY_PASSWORDS_FILE, PASSWORDS_FILE);
+        eventLog.info('SYSTEM', 'Migrated endpoint-passwords.json into web/data/');
+      } catch (e) {
+        eventLog.warn('SYSTEM', 'Could not migrate legacy endpoint-passwords.json', { error: e.message });
+      }
+    }
+
+    if (fs.existsSync(PASSWORDS_FILE)) {
+      const saved = JSON.parse(fs.readFileSync(PASSWORDS_FILE, 'utf-8'));
+      Object.assign(endpointPasswords, saved);
+      eventLog.info('SYSTEM', 'Endpoint passwords loaded', { count: Object.keys(saved).length });
+    }
+  } catch (e) {
+    eventLog.error('SYSTEM', 'Failed to load endpoint passwords', { error: e.message });
   }
-} catch (e) {
-  eventLog.error('SYSTEM', 'Failed to load endpoint passwords', { error: e.message });
 }
 
 function storePassword(name, password) {
@@ -553,8 +837,13 @@ function storePassword(name, password) {
     delete endpointPasswords[keys[0]]; // evict oldest
   }
   endpointPasswords[name] = password;
-  // Persist to disk
-  try { fs.writeFileSync(PASSWORDS_FILE, JSON.stringify(endpointPasswords, null, 2)); } catch (e) { /* ignore */ }
+  if (IS_VERCEL) return; // skip persistence on read-only fs
+  // Persist to disk atomically (write to tmp + rename) with restricted perms
+  try {
+    const tmp = `${PASSWORDS_FILE}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(endpointPasswords, null, 2), { mode: 0o600 });
+    fs.renameSync(tmp, PASSWORDS_FILE);
+  } catch (e) { /* ignore */ }
 }
 
 // ── Routes: Auth ──────────────────────────────────────────────────────────
@@ -590,8 +879,15 @@ app.get('/api/auth/status', (req, res) => {
   res.json({ authenticated: false });
 });
 
+// Rate limiter for user-facing login endpoints (per-IP)
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: 'Too many login attempts. Try again later.',
+});
+
 // Token-paste login — user runs `nebius iam get-access-token` locally and pastes it
-app.post('/api/auth/token', async (req, res) => {
+app.post('/api/auth/token', loginLimiter, async (req, res) => {
   const { token } = req.body;
   if (!token || typeof token !== 'string' || token.trim().length < 10) {
     return res.status(400).json({ error: 'A valid access token is required' });
@@ -601,15 +897,22 @@ app.post('/api/auth/token', async (req, res) => {
 
   try {
     // Verify the token by running whoami
-    const whoami = execSync('nebius iam whoami --format json', {
+    const whoamiRes = require('child_process').spawnSync('nebius', ['iam', 'whoami', '--format', 'json'], {
       encoding: 'utf-8',
       timeout: 10000,
-      env: nebiusExecEnv(trimmedToken)
-    }).trim();
-    const identity = JSON.parse(whoami);
+      env: nebiusExecEnv(trimmedToken),
+    });
+    if (whoamiRes.status !== 0) {
+      throw new Error(redactString(whoamiRes.stderr || `exit ${whoamiRes.status}`));
+    }
+    const identity = JSON.parse((whoamiRes.stdout || '').trim());
     const attrs = identity.user_profile?.attributes || {};
     const user = attrs.name || attrs.given_name || attrs.email || identity.user_profile?.id || 'Nebius User';
 
+    // Regenerate session on login to prevent session fixation
+    await new Promise((resolve, reject) =>
+      req.session.regenerate(err => err ? reject(err) : resolve())
+    );
     // Store token in session (~12h lifetime, no refresh tokens)
     req.session.nebiusToken = trimmedToken;
     req.session.tokenExpiresAt = Date.now() + 12 * 60 * 60 * 1000;
@@ -632,13 +935,18 @@ app.post('/api/auth/token', async (req, res) => {
 
 // CLI Login — runs `nebius iam get-access-token` on the server
 // Requires the user to have already authenticated via `nebius profile create`
-app.post('/api/auth/cli-login', async (req, res) => {
+app.post('/api/auth/cli-login', loginLimiter, async (req, res) => {
   try {
-    const accessToken = execSync('nebius iam get-access-token', {
+    const spawnSync = require('child_process').spawnSync;
+    const tokenRes = spawnSync('nebius', ['iam', 'get-access-token'], {
       encoding: 'utf-8',
       timeout: 15000,
-      env: nebiusExecEnv()
-    }).trim();
+      env: nebiusExecEnv(),
+    });
+    if (tokenRes.status !== 0) {
+      throw new Error(redactString(tokenRes.stderr || `exit ${tokenRes.status}`));
+    }
+    const accessToken = (tokenRes.stdout || '').trim();
 
     if (!accessToken || accessToken.length < 10) {
       eventLog.error('AUTH', 'CLI login returned empty token');
@@ -647,15 +955,22 @@ app.post('/api/auth/cli-login', async (req, res) => {
     }
 
     // Verify token and get user info
-    const whoami = execSync('nebius iam whoami --format json', {
+    const whoamiRes = spawnSync('nebius', ['iam', 'whoami', '--format', 'json'], {
       encoding: 'utf-8',
       timeout: 10000,
-      env: nebiusExecEnv(accessToken)
-    }).trim();
-    const identity = JSON.parse(whoami);
+      env: nebiusExecEnv(accessToken),
+    });
+    if (whoamiRes.status !== 0) {
+      throw new Error(redactString(whoamiRes.stderr || `exit ${whoamiRes.status}`));
+    }
+    const identity = JSON.parse((whoamiRes.stdout || '').trim());
     const attrs = identity.user_profile?.attributes || {};
     const user = attrs.name || attrs.given_name || attrs.email || identity.user_profile?.id || 'Nebius User';
 
+    // Regenerate session on login to prevent session fixation
+    await new Promise((resolve, reject) =>
+      req.session.regenerate(err => err ? reject(err) : resolve())
+    );
     // Store in session (token valid ~12 hours)
     req.session.nebiusToken = accessToken;
     req.session.tokenExpiresAt = Date.now() + 43200 * 1000;
@@ -684,16 +999,54 @@ app.get('/api/auth/can-oauth', (req, res) => {
   res.json({ canOAuth: isLocal && !IS_VERCEL });
 });
 
-// Demo mode — use service account (no user token)
+// Demo mode — use service account (no user token).
+// Use POST so a cross-origin GET (image tag, click on a malicious link, etc.)
+// can't flip a logged-in user into demo mode behind their back.
+function startDemoSession(req, res, redirectTo = null) {
+  req.session.regenerate(err => {
+    if (err) {
+      eventLog.error('AUTH', 'Demo regenerate failed', { error: err.message });
+      return res.status(500).json({ error: 'Session error' });
+    }
+    req.session.authenticated = true;
+    req.session.isDemo = true;
+    req.session.nebiusToken = null;
+    req.session.user = 'Demo User';
+    req.session.tokenExpiresAt = null;
+    eventLog.info('AUTH', 'Demo mode session started');
+    trackLogin(true);
+    if (redirectTo) res.redirect(redirectTo);
+    else res.json({ ok: true });
+  });
+}
+
+app.post('/api/demo', (req, res) => startDemoSession(req, res));
+
+// Back-compat: keep /demo as a GET that just shows a small HTML page with a
+// POST form. (No side effects on GET — only the explicit form submit
+// activates demo mode.)
 app.get('/demo', (req, res) => {
-  req.session.authenticated = true;
-  req.session.isDemo = true;
-  req.session.nebiusToken = null;
-  req.session.user = 'Demo User';
-  req.session.tokenExpiresAt = null;
-  eventLog.info('AUTH', 'Demo mode session started');
-  trackLogin(true);
-  res.redirect('/');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!doctype html>
+<meta charset="utf-8">
+<title>Demo mode</title>
+<style>body{font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;background:#0a0a0a;color:#eee}form{padding:2rem;border:1px solid #333;border-radius:8px;background:#111}button{background:#3b82f6;color:#fff;border:0;padding:.6rem 1rem;border-radius:6px;cursor:pointer;font:inherit}</style>
+<form method="POST" action="/api/demo" onsubmit="this.querySelector('input[name=_csrf]').value=document.cookie.match(/csrf=([^;]+)/)?.[1]||''">
+  <input type="hidden" name="_csrf" value="">
+  <h1>Activate demo mode?</h1>
+  <p>This will start a guest session backed by the Nebius service account.</p>
+  <button type="submit">Continue</button>
+</form>
+<script>
+  // Add the CSRF header for the demo POST
+  document.querySelector('form').addEventListener('submit', async function(e){
+    e.preventDefault();
+    const t = document.cookie.match(/csrf=([^;]+)/)?.[1] || '';
+    const r = await fetch('/api/demo', { method:'POST', headers:{'x-csrf-token':t,'content-type':'application/json'}, body:'{}' });
+    if (r.ok) location.href = '/';
+    else alert('Failed to start demo mode');
+  });
+</script>`);
 });
 
 app.post('/api/auth/logout', (req, res) => {
@@ -766,47 +1119,61 @@ app.get('/api/secrets/:id/payload', requireAuth, (req, res) => {
 });
 
 // Create a new secret in MysteryBox
-app.post('/api/secrets', requireAuth, (req, res) => {
+app.post('/api/secrets', requireAuth, async (req, res) => {
   if (IS_VERCEL) return res.json({ id: 'demo-new-secret', name: req.body.name });
 
   const { name, key, value } = req.body;
   if (!name || !key || !value) {
     return res.status(400).json({ error: 'name, key, and value are required' });
   }
-
+  if (typeof key !== 'string' || typeof value !== 'string') {
+    return res.status(400).json({ error: 'key and value must be strings' });
+  }
+  if (key.length > 256 || value.length > 64 * 1024) {
+    return res.status(400).json({ error: 'key/value too large' });
+  }
   // Sanitize name (alphanumeric, hyphens, underscores only)
   const safeName = name.replace(/[^a-zA-Z0-9_-]/g, '-').substring(0, 64);
 
   // Find a project ID to use as parent
   const projectId = Object.values(REGIONS)[0]?.projectId;
-  if (!projectId) {
+  if (!projectId || !/^[a-zA-Z0-9_-]+$/.test(projectId)) {
     return res.status(500).json({ error: 'No project configured. Check Nebius CLI setup.' });
   }
 
   const token = getUserToken(req);
+  // Build payload JSON — pass as a single argv element. JSON.stringify is safe
+  // here because we're not embedding it in a shell string.
+  const payloadJson = JSON.stringify([{ key, string_value: value }]);
 
   try {
-    const payloadJson = JSON.stringify([{ key, string_value: value }]);
-    const result = nebius(
-      `mysterybox secret create --name "${safeName}" --parent-id ${projectId} --secret-version-payload '${payloadJson}' --format json`,
-      null, token
-    );
+    const result = await nebiusSafe([
+      'mysterybox', 'secret', 'create',
+      '--name', safeName,
+      '--parent-id', projectId,
+      '--secret-version-payload', payloadJson,
+      '--format', 'json',
+    ], { iamToken: token });
     const parsed = JSON.parse(result);
     res.json({
       id: parsed.metadata?.id || 'unknown',
       name: safeName,
-      message: 'Secret created'
+      message: 'Secret created',
     });
   } catch (err) {
     // If secret already exists, try to update it instead
     if (err.message.includes('AlreadyExists')) {
       try {
-        // Find the existing secret ID
-        const existing = nebiusJson('mysterybox secret list', null, token);
+        const existing = await nebiusJsonSafe(['mysterybox', 'secret', 'list'], { iamToken: token });
         const found = (existing.items || []).find(s => s.metadata?.name === safeName);
-        if (found) {
-          const payloadJson = JSON.stringify([{ key, string_value: value }]);
-          nebius(`mysterybox secret-version create --parent-id ${found.metadata.id} --payload '${payloadJson}' --set-primary --format json`, null, token);
+        if (found && /^[a-zA-Z0-9_-]+$/.test(found.metadata.id)) {
+          await nebiusSafe([
+            'mysterybox', 'secret-version', 'create',
+            '--parent-id', found.metadata.id,
+            '--payload', payloadJson,
+            '--set-primary',
+            '--format', 'json',
+          ], { iamToken: token });
           return res.json({ id: found.metadata.id, name: safeName, message: 'Secret updated (new version)' });
         }
       } catch (updateErr) {
@@ -818,19 +1185,28 @@ app.post('/api/secrets', requireAuth, (req, res) => {
 });
 
 // Update an existing secret's payload (creates new version)
-app.put('/api/secrets/:id', requireAuth, (req, res) => {
+app.put('/api/secrets/:id', requireAuth, async (req, res) => {
   if (IS_VERCEL) return res.json({ message: 'Secret updated (demo)' });
 
   const { key, value } = req.body;
-  if (!key || !value) {
+  if (!key || !value || typeof key !== 'string' || typeof value !== 'string') {
     return res.status(400).json({ error: 'key and value are required' });
+  }
+  if (key.length > 256 || value.length > 64 * 1024) {
+    return res.status(400).json({ error: 'key/value too large' });
   }
 
   try {
     const id = validateId(req.params.id);
     const token = getUserToken(req);
     const payloadJson = JSON.stringify([{ key, string_value: value }]);
-    nebius(`mysterybox secret-version create --parent-id ${id} --payload '${payloadJson}' --set-primary --format json`, null, token);
+    await nebiusSafe([
+      'mysterybox', 'secret-version', 'create',
+      '--parent-id', id,
+      '--payload', payloadJson,
+      '--set-primary',
+      '--format', 'json',
+    ], { iamToken: token });
     res.json({ message: 'Secret updated' });
   } catch (err) {
     res.status(500).json({ error: `Failed to update secret: ${err.message.split('\n')[0]}` });
@@ -989,8 +1365,17 @@ app.get('/api/registries/:id/images', requireAuth, (req, res) => {
   }
 });
 
-// Docker image build tracking
+// Docker image build tracking. Bounded LRU so a long-lived dev server can't
+// run out of memory if a user kicks off lots of builds.
 const builds = new Map();
+const MAX_BUILDS = 50;
+const BUILD_LOG_MAX = 200 * 1024; // 200 KB per build
+function pruneBuilds() {
+  while (builds.size > MAX_BUILDS) {
+    const oldestKey = builds.keys().next().value;
+    builds.delete(oldestKey);
+  }
+}
 
 app.post('/api/build', requireAuth, (req, res) => {
   if (IS_VERCEL) return res.json({ buildId: 'demo-build', status: 'running' });
@@ -1004,15 +1389,13 @@ app.post('/api/build', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'githubUrl is required for custom builds' });
   }
 
-  // Validate GitHub URL for custom builds
+  // Validate GitHub URL for custom builds — must look like https://github.com/owner/repo[.git]
+  // and contain ONLY characters that are safe in a git URL. We pass it via spawn argv anyway,
+  // but defense-in-depth.
+  const GITHUB_URL_RE = /^https:\/\/github\.com\/[A-Za-z0-9](?:[A-Za-z0-9._-]{0,38}[A-Za-z0-9])?\/[A-Za-z0-9._-]{1,100}(\.git)?$/;
   if (imageType === 'custom') {
-    try {
-      const parsed = new URL(githubUrl);
-      if (parsed.hostname !== 'github.com') {
-        return res.status(400).json({ error: 'Only GitHub repository URLs are supported' });
-      }
-    } catch {
-      return res.status(400).json({ error: 'Invalid URL format' });
+    if (typeof githubUrl !== 'string' || !GITHUB_URL_RE.test(githubUrl)) {
+      return res.status(400).json({ error: 'Invalid GitHub URL. Expected https://github.com/owner/repo' });
     }
   }
 
@@ -1051,7 +1434,7 @@ app.post('/api/build', requireAuth, (req, res) => {
 
   const buildId = `build-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
-  let imageName, buildCmd, env;
+  let imageName, buildProc, env, imageUrl;
 
   if (imageType === 'custom') {
     // Extract repo name from URL for image name
@@ -1059,78 +1442,104 @@ app.post('/api/build', requireAuth, (req, res) => {
     imageName = repoPath.split('/').pop() || 'custom-image';
     // Sanitize image name for Docker
     imageName = imageName.toLowerCase().replace(/[^a-z0-9._-]/g, '-');
-    const imageUrl = `cr.${region}.nebius.cloud/${registryId}/${imageName}:latest`;
+    imageUrl = `cr.${region}.nebius.cloud/${registryId}/${imageName}:latest`;
 
     builds.set(buildId, { status: 'running', log: '', image: imageUrl, startedAt: Date.now() });
+    pruneBuilds();
 
     const tmpDir = `/tmp/custom-build-${buildId}`;
-    // Clone repo, find Dockerfile, build and push
-    buildCmd = `set -e
-echo "=== Cloning ${githubUrl} ==="
-git clone --depth 1 "${githubUrl}" "${tmpDir}" 2>&1
-cd "${tmpDir}"
-if [ ! -f Dockerfile ]; then
-  echo "ERROR: No Dockerfile found in repository root"
-  ls -la
-  exit 1
-fi
-echo "=== Found Dockerfile ==="
-echo "=== Authenticating with registry ==="
-nebius container registry configure-docker --profile ${regionConfig.profile} 2>&1 || true
-echo "=== Building Docker image ==="
-docker build -t "${imageUrl}" . 2>&1
-echo "=== Pushing image to registry ==="
-docker push "${imageUrl}" 2>&1
-echo "=== Cleaning up ==="
-rm -rf "${tmpDir}"
-echo "=== Done ==="`;
-
     env = { ...process.env };
+
+    // Invoke bash with -c, but pass the user-controlled URL via env var (not
+    // interpolated into the shell string) so it can't escape quoting.
+    const script = [
+      'set -e',
+      'echo "=== Cloning $GITHUB_URL ==="',
+      'git clone --depth 1 -- "$GITHUB_URL" "$TMP_DIR" 2>&1',
+      'cd "$TMP_DIR"',
+      'if [ ! -f Dockerfile ]; then echo "ERROR: No Dockerfile in repo root"; ls -la; exit 1; fi',
+      'echo "=== Authenticating with registry ==="',
+      'nebius container registry configure-docker --profile "$NEBIUS_PROFILE" 2>&1 || true',
+      'echo "=== Building Docker image ==="',
+      'docker build -t "$IMAGE_URL" . 2>&1',
+      'echo "=== Pushing image to registry ==="',
+      'docker push "$IMAGE_URL" 2>&1',
+      'echo "=== Cleaning up ==="',
+      'rm -rf "$TMP_DIR"',
+      'echo "=== Done ==="',
+    ].join('\n');
+
+    env.GITHUB_URL = githubUrl;
+    env.TMP_DIR = tmpDir;
+    env.IMAGE_URL = imageUrl;
+    env.NEBIUS_PROFILE = regionConfig.profile || '';
+
     res.json({ buildId, status: 'running', image: imageUrl });
+    buildProc = spawn('bash', ['-c', script], { env, timeout: 600000 });
   } else {
     imageName = imageType === 'nemoclaw' ? 'nemoclaw-serverless' : 'openclaw-serverless';
-    const imageUrl = `cr.${region}.nebius.cloud/${registryId}/${imageName}:latest`;
+    imageUrl = `cr.${region}.nebius.cloud/${registryId}/${imageName}:latest`;
 
     builds.set(buildId, { status: 'running', log: '', image: imageUrl, startedAt: Date.now() });
+    pruneBuilds();
 
-    // Run build script asynchronously
+    // Run build script asynchronously — pass path as a single argv element so
+    // there's no shell parsing of the path. (The path is built from hardcoded
+    // literals, so this is defense-in-depth.)
     const scriptPath = imageType === 'nemoclaw'
       ? path.resolve(__dirname, '../../deploy-scripts/install-nemoclaw-serverless.sh')
       : path.resolve(__dirname, '../../deploy-scripts/install-openclaw-serverless.sh');
-
-    // Check if script exists, if not use inline Dockerfile
-    buildCmd = fs.existsSync(scriptPath)
-      ? `bash "${scriptPath}" 2>&1`
-      : `echo "Build script not found: ${scriptPath}"`;
 
     env = {
       ...process.env,
       REGION: region,
       PROJECT_ID: regionConfig.projectId || '',
-      TOKEN_FACTORY_API_KEY: 'placeholder', // Just for the build, not used at build time
-      SKIP_DEPLOY: '1' // We only want build+push, not endpoint creation
+      TOKEN_FACTORY_API_KEY: 'placeholder',
+      SKIP_DEPLOY: '1',
     };
 
     res.json({ buildId, status: 'running', image: imageUrl });
+
+    if (!fs.existsSync(scriptPath)) {
+      const build = builds.get(buildId);
+      if (build) {
+        build.status = 'failed';
+        build.log = `Build script not found: ${scriptPath}\n(This feature requires running from a checkout of the openclaw-nebius repo; it does not work on Vercel.)\n`;
+        build.finishedAt = Date.now();
+      }
+      return;
+    }
+    buildProc = spawn('bash', [scriptPath], { env, timeout: 600000 });
   }
 
-  const buildProc = exec(buildCmd, { env, timeout: 600000 }, (err, stdout, stderr) => {
+  // Stream stdout/stderr into the build log, capped to avoid OOM.
+  const appendLog = (chunk) => {
+    const build = builds.get(buildId);
+    if (!build) return;
+    build.log += chunk;
+    if (build.log.length > BUILD_LOG_MAX) {
+      // Keep last BUILD_LOG_MAX bytes
+      build.log = build.log.slice(-BUILD_LOG_MAX);
+      build.truncated = true;
+    }
+  };
+  buildProc.stdout?.on('data', (d) => appendLog(d.toString('utf8')));
+  buildProc.stderr?.on('data', (d) => appendLog(d.toString('utf8')));
+  buildProc.on('error', (err) => {
     const build = builds.get(buildId);
     if (build) {
-      build.status = err ? 'failed' : 'success';
-      build.log += stderr || '';
+      build.status = 'failed';
+      build.log += `\nSPAWN ERROR: ${err.message}\n`;
       build.finishedAt = Date.now();
     }
+    eventLog.error('BUILD', 'Build spawn error', { buildId, error: err.message });
   });
-
-  buildProc.stdout?.on('data', (data) => {
+  buildProc.on('close', (code) => {
     const build = builds.get(buildId);
-    if (build) build.log += data.toString();
-  });
-
-  buildProc.stderr?.on('data', (data) => {
-    const build = builds.get(buildId);
-    if (build) build.log += data.toString();
+    if (build) {
+      build.status = code === 0 ? 'success' : 'failed';
+      build.finishedAt = Date.now();
+    }
   });
 });
 
@@ -1226,22 +1635,36 @@ app.post('/api/models', requireAuth, async (req, res) => {
 
     // Try user-provided API key first, then env var, then MysteryBox
     let authToken = req.body.apiKey || process.env.TOKEN_FACTORY_API_KEY || '';
+    if (authToken && !/^[A-Za-z0-9._~+/=-]{8,512}$/.test(authToken)) {
+      return res.status(400).json({ error: 'Invalid API key format' });
+    }
     const userIamToken = getUserToken(req);
     if (!authToken) {
       try {
-        const secretsJson = execSync('nebius mysterybox secret list --format json', { encoding: 'utf-8', timeout: 15000, env: nebiusExecEnv(userIamToken) });
-        const secrets = JSON.parse(secretsJson);
-        const tfSecret = (secrets.items || []).find(s =>
-          (s.metadata?.name || '').toLowerCase().includes('token') && (s.metadata?.name || '').toLowerCase().includes('key')
-        );
-        if (tfSecret) {
-          const payloadJson = execSync(`nebius mysterybox payload get --secret-id ${validateId(tfSecret.metadata.id)} --format json`, { encoding: 'utf-8', timeout: 15000, env: nebiusExecEnv(userIamToken) });
-          const payload = JSON.parse(payloadJson);
-          const entry = (payload.data || [])[0];
-          if (entry) authToken = entry.string_value || entry.text_value || '';
+        const spawnSync = require('child_process').spawnSync;
+        const listRes = spawnSync('nebius', ['mysterybox', 'secret', 'list', '--format', 'json'], {
+          encoding: 'utf-8', timeout: 15000, env: nebiusExecEnv(userIamToken),
+        });
+        if (listRes.status === 0) {
+          const secrets = JSON.parse(listRes.stdout || '{}');
+          const tfSecret = (secrets.items || []).find(s =>
+            (s.metadata?.name || '').toLowerCase().includes('token') &&
+            (s.metadata?.name || '').toLowerCase().includes('key')
+          );
+          if (tfSecret) {
+            const sid = validateId(tfSecret.metadata.id);
+            const payloadRes = spawnSync('nebius', ['mysterybox', 'payload', 'get', '--secret-id', sid, '--format', 'json'], {
+              encoding: 'utf-8', timeout: 15000, env: nebiusExecEnv(userIamToken),
+            });
+            if (payloadRes.status === 0) {
+              const payload = JSON.parse(payloadRes.stdout || '{}');
+              const entry = (payload.data || [])[0];
+              if (entry) authToken = entry.string_value || entry.text_value || '';
+            }
+          }
         }
       } catch (e) {
-        eventLog.warn('MYSTERYBOX', 'Could not fetch TF key from MysteryBox', { error: e.message });
+        eventLog.warn('MYSTERYBOX', 'Could not fetch TF key from MysteryBox', { error: redactString(e.message) });
       }
     }
 
@@ -1273,7 +1696,7 @@ app.post('/api/models', requireAuth, async (req, res) => {
 
 // ── Routes: Local OpenClaw Instances ──────────────────────────────────────
 
-app.get('/api/local-instances', async (req, res) => {
+app.get('/api/local-instances', requireAuth, async (req, res) => {
   const GATEWAY_PORT = 18789;
   const GATEWAY_HOST = '127.0.0.1';
 
@@ -1687,75 +2110,122 @@ app.post('/api/deploy', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Could not resolve image URL' });
     }
 
-    // Check if the image exists in the registry; fall back to public GHCR if not
-    if (imageType !== 'custom' && registryId) {
+    // Check if the image exists in the registry; fall back to public GHCR if not.
+    // Use built-in fetch (no shell, token never enters argv or stderr).
+    if (imageType !== 'custom' && registryId && /^[a-z0-9-]{3,63}$/.test(registryId)) {
       try {
-        // Use user's IAM token if available, otherwise get one from CLI
-        const regCheckToken = token || execSync('nebius iam get-access-token', { encoding: 'utf-8' }).trim();
-        const registryUrl = `cr.${region}.nebius.cloud`;
-        const repoPath = `${registryId}/${imageType === 'nemoclaw' ? 'nemoclaw' : 'openclaw'}-serverless`;
-        const checkResult = execSync(
-          `curl -sf -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${regCheckToken}" "https://${registryUrl}/v2/${repoPath}/tags/list"`,
-          { encoding: 'utf-8', timeout: 10000 }
-        ).trim();
-        if (checkResult === '404' || checkResult === '401') {
-          // Image not in user's registry — fall back to public GHCR image
-          const ghcrImage = GHCR_IMAGES[imageType];
-          if (ghcrImage) {
-            eventLog.info('DEPLOY', 'Image not in registry, falling back to public GHCR', { ghcrImage });
-            image = ghcrImage;
+        let regCheckToken = token;
+        if (!regCheckToken) {
+          const r = await spawnCapture('nebius', ['iam', 'get-access-token'], { timeout: 10000 });
+          if (r.code === 0) regCheckToken = r.stdout.trim();
+        }
+        if (regCheckToken) {
+          const registryUrl = `cr.${region}.nebius.cloud`;
+          const repoPath = `${registryId}/${imageType === 'nemoclaw' ? 'nemoclaw' : 'openclaw'}-serverless`;
+          const ac = new AbortController();
+          const t = setTimeout(() => ac.abort(), 10000);
+          try {
+            const resp = await fetch(`https://${registryUrl}/v2/${repoPath}/tags/list`, {
+              headers: { Authorization: `Bearer ${regCheckToken}` },
+              signal: ac.signal,
+            });
+            if (resp.status === 404 || resp.status === 401) {
+              const ghcrImage = GHCR_IMAGES[imageType];
+              if (ghcrImage) {
+                eventLog.info('DEPLOY', 'Image not in registry, falling back to public GHCR', { ghcrImage });
+                image = ghcrImage;
+              }
+            }
+          } finally {
+            clearTimeout(t);
           }
         }
       } catch (e) {
-        eventLog.warn('DEPLOY', 'Image registry check skipped', { error: e.message.split('\n')[0] });
+        eventLog.warn('DEPLOY', 'Image registry check skipped', { error: redactString(e.message?.split('\n')[0] || String(e)) });
       }
     }
 
-    // Build env vars based on provider
-    const envFlags = [];
-    envFlags.push(`--env "INFERENCE_MODEL=${model || 'zai-org/GLM-5'}"`);
+    // ── Strict input validation ──────────────────────────────────────────
+    // These values get passed into the Nebius CLI; reject anything that
+    // doesn't look like a tame identifier / URL / opaque token.
+    const NAME_RE = /^[a-z0-9-]{3,63}$/;
+    const MODEL_RE = /^[a-zA-Z0-9._/-]+$/;
+    const APIKEY_RE = /^[A-Za-z0-9._~+/=-]{8,512}$/;
+    const PLATFORM_RE = /^[a-z0-9-]+$/;
+    const PRESET_RE = /^[a-z0-9-]+$/;
+
+    if (!NAME_RE.test(name)) {
+      return res.status(400).json({ error: 'Endpoint name must be 3-63 chars, lowercase letters, digits, or hyphens' });
+    }
+    const safeModel = (model || 'zai-org/GLM-5').trim();
+    if (!MODEL_RE.test(safeModel)) {
+      return res.status(400).json({ error: 'Invalid model id' });
+    }
+    if (imageType === 'custom') {
+      // Image URLs are tightly constrained — registry/repo:tag format only
+      if (typeof customImage !== 'string' || !/^[a-z0-9._/:@-]{3,512}$/i.test(customImage)) {
+        return res.status(400).json({ error: 'Invalid custom image URL' });
+      }
+    }
+    if (apiKey && !APIKEY_RE.test(apiKey)) {
+      return res.status(400).json({ error: 'Invalid API key format' });
+    }
+    const tavilyKey = req.body.tavilyApiKey?.trim();
+    if (tavilyKey && !APIKEY_RE.test(tavilyKey)) {
+      return res.status(400).json({ error: 'Invalid Tavily API key format' });
+    }
+    if (regionConfig.cpuPlatform && !PLATFORM_RE.test(regionConfig.cpuPlatform)) {
+      return res.status(400).json({ error: 'Invalid platform' });
+    }
+    if (regionConfig.cpuPreset && !PRESET_RE.test(regionConfig.cpuPreset)) {
+      return res.status(400).json({ error: 'Invalid preset' });
+    }
+
+    // Build env vars as ["--env", "KEY=VALUE"] argv pairs — no shell parsing,
+    // values pass through spawn() literally so quoting/injection isn't a thing.
+    const envArgs = [];
+    const addEnv = (k, v) => { envArgs.push('--env', `${k}=${v}`); };
+    addEnv('INFERENCE_MODEL', safeModel);
 
     // Generate a dashboard password and store it for later use
     const webPassword = crypto.randomBytes(24).toString('base64url');
-    envFlags.push(`--env "OPENCLAW_WEB_PASSWORD=${webPassword}"`);
+    addEnv('OPENCLAW_WEB_PASSWORD', webPassword);
 
     if (!isGpuPlatform) {
       switch (provider) {
         case 'openrouter':
-          envFlags.push(`--env "OPENROUTER_API_KEY=${apiKey}"`);
-          envFlags.push('--env "INFERENCE_URL=https://openrouter.ai/api/v1"');
-          envFlags.push('--env "INFERENCE_PROVIDER=openrouter"');
-          envFlags.push('--env "OPENROUTER_PROVIDER_ONLY=nebius"');
+          addEnv('OPENROUTER_API_KEY', apiKey);
+          addEnv('INFERENCE_URL', 'https://openrouter.ai/api/v1');
+          addEnv('INFERENCE_PROVIDER', 'openrouter');
+          addEnv('OPENROUTER_PROVIDER_ONLY', 'nebius');
           break;
         case 'huggingface':
-          envFlags.push(`--env "HUGGINGFACE_API_KEY=${apiKey}"`);
-          envFlags.push('--env "INFERENCE_PROVIDER=huggingface"');
-          envFlags.push('--env "HUGGINGFACE_PROVIDER=nebius"');
-          envFlags.push(`--env "HF_TOKEN=${apiKey}"`);
+          addEnv('HUGGINGFACE_API_KEY', apiKey);
+          addEnv('INFERENCE_PROVIDER', 'huggingface');
+          addEnv('HUGGINGFACE_PROVIDER', 'nebius');
+          addEnv('HF_TOKEN', apiKey);
           break;
         case 'token-factory':
         default:
-          envFlags.push(`--env "TOKEN_FACTORY_API_KEY=${apiKey}"`);
-          envFlags.push(`--env "TOKEN_FACTORY_URL=${tokenFactoryUrl(region)}"`);
+          addEnv('TOKEN_FACTORY_API_KEY', apiKey);
+          addEnv('TOKEN_FACTORY_URL', tokenFactoryUrl(region));
           break;
       }
     }
 
-    // Tavily search API key
-    const tavilyKey = req.body.tavilyApiKey?.trim();
-    if (tavilyKey) {
-      envFlags.push(`--env "TAVILY_API_KEY=${tavilyKey}"`);
-    }
+    if (tavilyKey) addEnv('TAVILY_API_KEY', tavilyKey);
 
     // Find SSH public key to authorize on the endpoint
     const sshKey = findSshKey();
     let sshPubKey = '';
     if (sshKey) {
       const pubPath = sshKey + '.pub';
-      // Generate .pub from private key if it doesn't exist
+      // Generate .pub from private key if it doesn't exist — use spawn + file
+      // write directly so the private-key path never enters a shell string.
       if (!fs.existsSync(pubPath)) {
         try {
-          execSync(`ssh-keygen -y -f "${sshKey}" > "${pubPath}"`, { encoding: 'utf-8' });
+          const { code, stdout } = await spawnCapture('ssh-keygen', ['-y', '-f', sshKey], { timeout: 5000 });
+          if (code === 0 && stdout) fs.writeFileSync(pubPath, stdout, { mode: 0o644 });
         } catch (e) { /* ignore */ }
       }
       if (fs.existsSync(pubPath)) {
@@ -1763,89 +2233,98 @@ app.post('/api/deploy', requireAuth, async (req, res) => {
       }
     }
 
-    // Deploy endpoint
-    const cmd = [
-      `${profileFlag} ai endpoint create`,
-      `--name "${name}"`,
-      `--image "${image}"`,
-      `--platform ${regionConfig.cpuPlatform || 'cpu-e2'}`,
-      regionConfig.cpuPreset ? `--preset ${regionConfig.cpuPreset}` : '',
-      '--container-port 8080',
-      '--container-port 18789',
-      '--disk-size 100Gi',
-      ...envFlags,
-      wantPublicIp ? '--public' : '',
-      sshPubKey ? `--ssh-key "${sshPubKey}"` : ''
-    ].filter(Boolean).join(' ');
+    // Deploy endpoint — argv array, no shell.
+    const deployArgs = [
+      '--profile', profile,
+      'ai', 'endpoint', 'create',
+      '--name', name,
+      '--image', image,
+      '--platform', regionConfig.cpuPlatform || 'cpu-e2',
+      ...(regionConfig.cpuPreset ? ['--preset', regionConfig.cpuPreset] : []),
+      '--container-port', '8080',
+      '--container-port', '18789',
+      '--disk-size', '100Gi',
+      ...envArgs,
+      ...(wantPublicIp ? ['--public'] : []),
+      ...(sshPubKey ? ['--ssh-key', sshPubKey] : []),
+    ];
 
     // Store the dashboard password keyed by endpoint name
     storePassword(name, webPassword);
     eventLog.info('DEPLOY', 'Deploy queued', { name, region, image, platform: regionConfig.cpuPlatform, preset: regionConfig.cpuPreset });
 
-    // Run async so we don't block
-    exec(`nebius ${cmd}`, { timeout: 120000, env: nebiusExecEnv(token) }, (err, stdout, stderr) => {
-      if (err) {
-        eventLog.error('DEPLOY', 'Deploy failed', { region, name, error: stderr || err.message });
-      } else {
-        eventLog.info('DEPLOY', 'Deploy succeeded', { region, name });
-      }
-    });
+    // Run async so we don't block. Use spawn — argv array, no shell.
+    spawnCapture('nebius', deployArgs, { env: nebiusExecEnv(token), timeout: 120000 })
+      .then(({ code, stderr }) => {
+        if (code !== 0) {
+          eventLog.error('DEPLOY', 'Deploy failed', { region, name, error: redactString(stderr) });
+        } else {
+          eventLog.info('DEPLOY', 'Deploy succeeded', { region, name });
+        }
+      })
+      .catch((err) => {
+        eventLog.error('DEPLOY', 'Deploy spawn error', { region, name, error: err.message });
+      });
 
     // ── Storage provisioning (async, non-blocking) ─────────────────────────
     let storageLabel = null;
     const storageSizeGb = Math.max(10, Math.min(10000, parseInt(rawStorageSize) || 100));
-    if (storage && projectId) {
+    const STORAGE_RE = /^(filesystem|bucket|postgresql)$/;
+    if (storage && projectId && STORAGE_RE.test(storage) && /^[a-z0-9-]{1,63}$/.test(projectId)) {
       const storageEnv = nebiusExecEnv(token);
       const storageName = `${name}-${storage === 'postgresql' ? 'pg' : storage === 'filesystem' ? 'fs' : 'bucket'}`;
+
+      const fireAndForget = (cat, args, label, timeout = 120000) => {
+        spawnCapture('nebius', args, { env: storageEnv, timeout })
+          .then(({ code, stderr, stdout }) => {
+            if (code !== 0) {
+              eventLog.error(cat, `${label} creation failed`, { storageName, error: redactString(stderr) });
+            } else {
+              try {
+                const parsed = JSON.parse(stdout);
+                const id = parsed?.metadata?.id || 'unknown';
+                eventLog.info(cat, `${label} created`, { storageName, id, sizeGb: storageSizeGb });
+              } catch (_) {
+                eventLog.info(cat, `${label} created`, { storageName });
+              }
+            }
+          })
+          .catch(err => eventLog.error(cat, `${label} spawn error`, { storageName, error: err.message }));
+      };
 
       if (storage === 'filesystem') {
         storageLabel = `Filesystem: ${storageName} (${storageSizeGb} GB)`;
         eventLog.info('STORAGE', 'Creating filesystem', { storageName, sizeGb: storageSizeGb, region, projectId });
-        exec(
-          `nebius ${profileFlag} compute filesystem create --name "${storageName}" --type network_ssd --size-gibibytes ${storageSizeGb} --block-size-bytes 4096 --parent-id ${projectId} --format json`,
-          { timeout: 120000, env: storageEnv },
-          (err, stdout, stderr) => {
-            if (err) {
-              eventLog.error('STORAGE', 'Filesystem creation failed', { storageName, error: stderr || err.message });
-            } else {
-              try {
-                const fsData = JSON.parse(stdout);
-                const fsId = fsData?.metadata?.id || 'unknown';
-                eventLog.info('STORAGE', 'Filesystem created', { storageName, fsId, sizeGb: storageSizeGb });
-              } catch (e) {
-                eventLog.info('STORAGE', 'Filesystem created', { storageName });
-              }
-            }
-          }
-        );
+        fireAndForget('STORAGE', [
+          '--profile', profile,
+          'compute', 'filesystem', 'create',
+          '--name', storageName,
+          '--type', 'network_ssd',
+          '--size-gibibytes', String(storageSizeGb),
+          '--block-size-bytes', '4096',
+          '--parent-id', projectId,
+          '--format', 'json',
+        ], 'Filesystem');
       } else if (storage === 'bucket') {
         storageLabel = `Bucket: ${storageName} (${storageSizeGb} GB)`;
         eventLog.info('STORAGE', 'Creating bucket', { storageName, region, projectId });
-        exec(
-          `nebius ${profileFlag} storage bucket create --name "${storageName}" --parent-id ${projectId} --format json`,
-          { timeout: 120000, env: storageEnv },
-          (err, stdout, stderr) => {
-            if (err) {
-              eventLog.error('STORAGE', 'Bucket creation failed', { storageName, error: stderr || err.message });
-            } else {
-              eventLog.info('STORAGE', 'Bucket created', { storageName });
-            }
-          }
-        );
+        fireAndForget('STORAGE', [
+          '--profile', profile,
+          'storage', 'bucket', 'create',
+          '--name', storageName,
+          '--parent-id', projectId,
+          '--format', 'json',
+        ], 'Bucket');
       } else if (storage === 'postgresql') {
         storageLabel = `PostgreSQL: ${storageName} (${storageSizeGb} GB)`;
         eventLog.info('DATABASE', 'Creating PostgreSQL cluster', { storageName, region, projectId });
-        exec(
-          `nebius ${profileFlag} msp postgresql cluster create --name "${storageName}" --parent-id ${projectId} --format json`,
-          { timeout: 300000, env: storageEnv },
-          (err, stdout, stderr) => {
-            if (err) {
-              eventLog.error('DATABASE', 'PostgreSQL cluster creation failed', { storageName, error: stderr || err.message });
-            } else {
-              eventLog.info('DATABASE', 'PostgreSQL cluster created', { storageName });
-            }
-          }
-        );
+        fireAndForget('DATABASE', [
+          '--profile', profile,
+          'msp', 'postgresql', 'cluster', 'create',
+          '--name', storageName,
+          '--parent-id', projectId,
+          '--format', 'json',
+        ], 'PostgreSQL cluster', 300000);
       }
     }
 
@@ -1868,7 +2347,7 @@ app.post('/api/deploy', requireAuth, async (req, res) => {
 
 // ── Routes: Chat Inference ─────────────────────────────────────────────────
 
-app.post('/api/chat/completions', async (req, res) => {
+app.post('/api/chat/completions', requireAuth, async (req, res) => {
   const { gateway, messages, model } = req.body;
   if (!gateway || !messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'gateway and messages[] are required' });
@@ -1881,22 +2360,31 @@ app.post('/api/chat/completions', async (req, res) => {
       // Local gateway: direct HTTP to port 18789
       targetUrl = `http://127.0.0.1:18789/v1/chat/completions`;
     } else if (gateway.type === 'cloud') {
-      // Cloud endpoint: use Token Factory API or direct endpoint
-      const token = getUserToken(req);
-      // Try to get the API key from deploy-time secrets or env
-      const ep = Object.values(proxyEndpointCache).find(e => e.name === gateway.name);
-      const epIp = ep?.ip || gateway.ip;
+      // Cloud endpoint: use Token Factory API or direct endpoint.
+      // SECURITY: only allow direct-IP targeting via cached endpoint names —
+      // never trust an IP the caller provides.
+      if (gateway.name && typeof gateway.name !== 'string') {
+        return res.status(400).json({ error: 'Invalid gateway name' });
+      }
+      const ep = gateway.name && /^[a-zA-Z0-9._-]{1,128}$/.test(gateway.name)
+        ? proxyEndpointCache[gateway.name] : null;
+      const epIp = ep?.ip || null;
 
       if (gateway.apiKey) {
         // User provided API key — use Token Factory directly
-        const region = gateway.region || 'eu-north1';
+        if (typeof gateway.apiKey !== 'string' || !/^[A-Za-z0-9._~+/=-]{8,512}$/.test(gateway.apiKey)) {
+          return res.status(400).json({ error: 'Invalid API key format' });
+        }
+        const region = (typeof gateway.region === 'string' && /^[a-z0-9-]+$/.test(gateway.region))
+          ? gateway.region : 'eu-north1';
         targetUrl = `${tokenFactoryUrl(region)}/chat/completions`;
         headers['Authorization'] = `Bearer ${gateway.apiKey}`;
       } else if (epIp) {
-        // Direct to endpoint's inference server (port 8080)
+        // Direct to endpoint's inference server (port 8080) — IP came from
+        // our own poll of the Nebius API, so it's trusted.
         targetUrl = `http://${epIp}:8080/v1/chat/completions`;
       } else {
-        return res.status(400).json({ error: 'No API key or endpoint IP available' });
+        return res.status(400).json({ error: 'No API key or known endpoint name available' });
       }
     } else {
       return res.status(400).json({ error: 'Invalid gateway type' });
@@ -1922,21 +2410,25 @@ app.post('/api/chat/completions', async (req, res) => {
       return res.status(upstream.status).json({ error: `Inference API error: ${upstream.status}` });
     }
 
-    // Stream SSE response back to client
+    // Stream SSE response back to client.
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    const reader = upstream.body;
-    reader.on('data', (chunk) => {
-      res.write(chunk);
-    });
-    reader.on('end', () => {
-      res.end();
-    });
-    reader.on('error', (err) => {
-      eventLog.error('CHAT', 'Stream error', { error: err.message });
-      res.end();
+    // Global fetch returns a Web ReadableStream — convert to a Node Readable
+    // so we can use stream.pipeline (backpressure + error propagation).
+    const { Readable } = require('stream');
+    const nodeStream = Readable.fromWeb(upstream.body);
+    // Cancel upstream if the client disconnects so we don't keep buffering.
+    const onClientClose = () => { try { nodeStream.destroy(); } catch (_) {} };
+    req.on('close', onClientClose);
+
+    const { pipeline } = require('stream');
+    pipeline(nodeStream, res, (err) => {
+      req.removeListener('close', onClientClose);
+      if (err && err.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
+        eventLog.error('CHAT', 'Stream pipeline error', { error: err.message });
+      }
     });
 
   } catch (err) {
@@ -1947,52 +2439,53 @@ app.post('/api/chat/completions', async (req, res) => {
 
 // ── Routes: Manage ─────────────────────────────────────────────────────────
 
-app.delete('/api/endpoints/:id', requireAuth, (req, res) => {
-  if (IS_VERCEL) return res.json({ status: 'demo — delete not available', id: req.params.id });
+function endpointAction(action, timeout) {
+  return (req, res) => {
+    if (IS_VERCEL) return res.json({ status: action === 'delete' ? 'demo — delete not available' : 'demo', id: req.params.id });
+    try {
+      const id = validateId(req.params.id);
+      const token = getUserToken(req);
+      spawnCapture('nebius', ['ai', 'endpoint', action, '--id', id], {
+        env: nebiusExecEnv(token), timeout,
+      }).then(({ code, stderr }) => {
+        if (code !== 0) eventLog.error('DEPLOY', `Endpoint ${action} failed`, { id, error: redactString(stderr) });
+      }).catch(err => eventLog.error('DEPLOY', `Endpoint ${action} spawn error`, { id, error: err.message }));
+      res.json({ status: `${action}ing`, id });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  };
+}
 
-  try {
-    const id = validateId(req.params.id);
-    const token = getUserToken(req);
-    exec(`nebius ai endpoint delete --id ${id}`, { timeout: 60000, env: nebiusExecEnv(token) }, (err) => {
-      if (err) eventLog.error('DEPLOY', 'Endpoint delete failed', { id: req.params.id, error: err.message });
-    });
-    res.json({ status: 'deleting', id });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/endpoints/:id/stop', requireAuth, (req, res) => {
-  if (IS_VERCEL) return res.json({ status: 'demo' });
-  try {
-    const id = validateId(req.params.id);
-    const token = getUserToken(req);
-    exec(`nebius ai endpoint stop --id ${id}`, { timeout: 120000, env: nebiusExecEnv(token) }, (err) => {
-      if (err) eventLog.error('DEPLOY', 'Endpoint stop failed', { error: err.message });
-    });
-    res.json({ status: 'stopping', id });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/endpoints/:id/start', requireAuth, (req, res) => {
-  if (IS_VERCEL) return res.json({ status: 'demo' });
-  try {
-    const id = validateId(req.params.id);
-    const token = getUserToken(req);
-    exec(`nebius ai endpoint start --id ${id}`, { timeout: 120000, env: nebiusExecEnv(token) }, (err) => {
-      if (err) eventLog.error('DEPLOY', 'Endpoint start failed', { error: err.message });
-    });
-    res.json({ status: 'starting', id });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+app.delete('/api/endpoints/:id',       requireAuth, endpointAction('delete', 60000));
+app.post('/api/endpoints/:id/stop',    requireAuth, endpointAction('stop', 120000));
+app.post('/api/endpoints/:id/start',   requireAuth, endpointAction('start', 120000));
 
 // ── Routes: SSH Tunnel for Dashboard ──────────────────────────────────────
 const activeTunnels = {}; // { ip: { proc, localPort } }
-let nextTunnelPort = 19000;
+const MAX_TUNNEL_PORT = 19999;
+const MIN_TUNNEL_PORT = 19000;
+let nextTunnelPort = MIN_TUNNEL_PORT;
+function nextFreeTunnelPort() {
+  // Cycle through the range and skip ports that are still in use.
+  const used = new Set(Object.values(activeTunnels).map(t => t.localPort));
+  for (let i = 0; i < (MAX_TUNNEL_PORT - MIN_TUNNEL_PORT + 1); i++) {
+    if (nextTunnelPort > MAX_TUNNEL_PORT) nextTunnelPort = MIN_TUNNEL_PORT;
+    const p = nextTunnelPort++;
+    if (!used.has(p)) return p;
+  }
+  throw new Error('No free tunnel ports available');
+}
+
+// Returns true if `ip` matches a currently-known endpoint in our proxy cache.
+// Used to gate SSH-pivot routes so authed users can't aim the server's private
+// key at arbitrary hosts.
+function isKnownEndpointIp(ip) {
+  for (const ep of Object.values(proxyEndpointCache)) {
+    if (ep?.ip === ip) return true;
+  }
+  return false;
+}
 
 app.post('/api/tunnel', requireAuth, (req, res) => {
   let ip;
@@ -2001,13 +2494,19 @@ app.post('/api/tunnel', requireAuth, (req, res) => {
   } catch (e) {
     return res.status(400).json({ error: 'Valid IP address is required' });
   }
-  const { endpointName } = req.body;
+  // Only allow tunnels to IPs we know are real endpoints. Closes the
+  // "SSH-pivot with server key to arbitrary IP" hole.
+  if (!isKnownEndpointIp(ip)) {
+    return res.status(403).json({ error: 'IP does not match a known endpoint' });
+  }
+
+  const endpointName = typeof req.body.endpointName === 'string' && /^[a-zA-Z0-9._-]{1,128}$/.test(req.body.endpointName)
+    ? req.body.endpointName : null;
 
   const sshKey = findSshKey();
+  if (!sshKey) return res.status(500).json({ error: 'No SSH key available on server' });
 
   // Determine the tunnel URL scheme and host
-  // When running remotely behind HTTPS nginx, use https + nginx dashboard proxy port
-  // When running locally, use http://localhost
   const isLocal = req.hostname === 'localhost' || req.hostname === '127.0.0.1';
   const serverHost = isLocal ? 'localhost' : req.hostname;
   const tunnelScheme = isLocal ? 'http' : 'https';
@@ -2025,7 +2524,12 @@ app.post('/api/tunnel', requireAuth, (req, res) => {
     delete activeTunnels[ip];
   }
 
-  const localPort = nextTunnelPort++;
+  let localPort;
+  try {
+    localPort = nextFreeTunnelPort();
+  } catch (e) {
+    return res.status(503).json({ error: e.message });
+  }
 
   eventLog.info('TUNNEL', 'Creating SSH tunnel', { ip, localPort });
 
@@ -2037,25 +2541,38 @@ app.post('/api/tunnel', requireAuth, (req, res) => {
     gatewayToken = endpointPasswords[endpointName];
     eventLog.info('TUNNEL', 'Using stored dashboard password', { endpointName });
   } else {
-    // Fallback: SSH in and extract token from multiple sources
+    // Fallback: SSH in and extract token. Run as a bash heredoc via stdin —
+    // no user input interpolated into the script.
     try {
-      // Try multiple extraction methods:
-      // 1. Docker env vars (OPENCLAW_WEB_PASSWORD or OPENCLAW_GATEWAY_TOKEN)
-      // 2. OpenClaw config file (gateway.auth.token)
-      // 3. Process command line (OPENCLAW_GATEWAY_TOKEN=xxx set inline)
-      const tokenCmd = `ssh -i ${sshKey} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 nebius@${ip} "` +
-        `CID=\\$(sudo docker ps -q | head -1); ` +
-        `TOKEN=\\$(sudo docker exec \\$CID env 2>/dev/null | grep -E 'OPENCLAW_WEB_PASSWORD|OPENCLAW_GATEWAY_TOKEN' | head -1 | cut -d= -f2-); ` +
-        `if [ -z \\"\\$TOKEN\\" ]; then ` +
-        `  TOKEN=\\$(sudo docker exec \\$CID cat /home/openclaw/.openclaw/openclaw.json 2>/dev/null | python3 -c \\"import sys,json;d=json.load(sys.stdin);print(d.get('gateway',{}).get('auth',{}).get('token',''))\\" 2>/dev/null); ` +
-        `fi; ` +
-        `echo \\$TOKEN"`;
+      const remoteScript = `
+        CID=$(sudo docker ps -q | head -1)
+        if [ -z "$CID" ]; then exit 0; fi
+        TOKEN=$(sudo docker exec "$CID" env 2>/dev/null | grep -E 'OPENCLAW_WEB_PASSWORD|OPENCLAW_GATEWAY_TOKEN' | head -1 | cut -d= -f2-)
+        if [ -z "$TOKEN" ]; then
+          TOKEN=$(sudo docker exec "$CID" cat /home/openclaw/.openclaw/openclaw.json 2>/dev/null \\
+            | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('gateway',{}).get('auth',{}).get('token',''))" 2>/dev/null)
+        fi
+        echo "$TOKEN"
+      `;
       eventLog.info('TUNNEL', 'Fetching gateway token via SSH', { ip });
-      gatewayToken = execSync(tokenCmd, { timeout: 20000, encoding: 'utf-8' }).trim();
-      if (gatewayToken) {
-        eventLog.info('TUNNEL', 'Gateway token retrieved via SSH', { ip });
+      const { code, stdout } = require('child_process').spawnSync('ssh', [
+        '-i', sshKey,
+        '-o', 'StrictHostKeyChecking=no',
+        '-o', 'UserKnownHostsFile=/dev/null',
+        '-o', 'ConnectTimeout=10',
+        '-o', 'BatchMode=yes',
+        `nebius@${ip}`,
+        'bash', '-s',
+      ], { input: remoteScript, timeout: 20000, encoding: 'utf-8' });
+      if (code === 0) {
+        gatewayToken = (stdout || '').trim();
+        if (gatewayToken) {
+          eventLog.info('TUNNEL', 'Gateway token retrieved via SSH', { ip });
+        } else {
+          eventLog.warn('TUNNEL', 'No gateway token found in container env', { ip });
+        }
       } else {
-        eventLog.warn('TUNNEL', 'No gateway token found in container env', { ip });
+        eventLog.warn('TUNNEL', 'SSH gateway-token fetch failed', { ip, code });
       }
     } catch (err) {
       eventLog.warn('TUNNEL', 'Could not fetch gateway token', { ip, error: err.message });
@@ -2067,6 +2584,8 @@ app.post('/api/tunnel', requireAuth, (req, res) => {
   // So we SSH in and run socat to bridge host port → container port,
   // then forward our local port to that.
   const remoteProxyPort = 28789;
+  // ip is already validated by validateIp() (digits + dots only) — safe to use
+  // in the -L argument. ${remoteProxyPort} is a literal in this file.
   const proc = spawn('ssh', [
     '-tt',
     '-L', `0.0.0.0:${localPort}:localhost:${remoteProxyPort}`,
@@ -2075,36 +2594,61 @@ app.post('/api/tunnel', requireAuth, (req, res) => {
     '-o', 'UserKnownHostsFile=/dev/null',
     '-o', 'ServerAliveInterval=15',
     '-o', 'ConnectTimeout=10',
+    '-o', 'BatchMode=yes',
     '-o', 'ExitOnForwardFailure=yes',
     `nebius@${ip}`,
-    // On the remote host: get the container's IP, then use socat to proxy
-    `CONTAINER_IP=$(sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(sudo docker ps -q | head -1)); `
-    + `echo "Proxying to container at $CONTAINER_IP:18789"; `
-    + `sudo socat TCP-LISTEN:${remoteProxyPort},fork,reuseaddr TCP:$CONTAINER_IP:18789 || `
-    + `sudo apt-get install -y socat > /dev/null 2>&1 && sudo socat TCP-LISTEN:${remoteProxyPort},fork,reuseaddr TCP:$CONTAINER_IP:18789`
+    'bash', '-s',
   ]);
+
+  // Send the remote bash script via stdin so no user-controlled value can
+  // affect it. Even the port is a fixed literal — but we use env-var style
+  // anyway for clarity.
+  proc.stdin.write(`
+    CID=$(sudo docker ps -q | head -1)
+    CONTAINER_IP=$(sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$CID")
+    echo "Proxying to container at $CONTAINER_IP:18789"
+    if ! sudo socat TCP-LISTEN:${remoteProxyPort},fork,reuseaddr "TCP:$CONTAINER_IP:18789"; then
+      sudo apt-get install -y socat > /dev/null 2>&1
+      sudo socat TCP-LISTEN:${remoteProxyPort},fork,reuseaddr "TCP:$CONTAINER_IP:18789"
+    fi
+  `);
+  proc.stdin.end();
+
+  let responded = false;
+  const respond = (fn) => { if (!responded) { responded = true; fn(); } };
 
   proc.on('close', (code) => {
     eventLog.info('TUNNEL', 'SSH tunnel closed', { ip, localPort, code });
     delete activeTunnels[ip];
+    respond(() => res.status(500).json({ error: `SSH tunnel exited (code ${code})` }));
   });
 
   proc.on('error', (err) => {
     eventLog.error('TUNNEL', 'SSH tunnel process error', { ip, error: err.message });
     delete activeTunnels[ip];
+    respond(() => res.status(500).json({ error: 'SSH tunnel failed to start' }));
   });
 
   activeTunnels[ip] = { proc, localPort, gatewayToken };
 
-  // Give SSH a moment to establish the tunnel
-  setTimeout(() => {
-    if (proc.killed) {
-      res.status(500).json({ error: 'SSH tunnel failed to start' });
-    } else {
-      const urlPort = isLocal ? localPort : DASHBOARD_HTTPS_PORT;
-      res.json({ url: `${tunnelScheme}://${serverHost}:${urlPort}`, localPort, token: gatewayToken || null, reused: false });
+  // Probe the local port until it accepts a connection or we time out.
+  // Replaces the previous fixed 2-second sleep race.
+  const net = require('net');
+  const probeUntil = Date.now() + 8000;
+  const probe = () => {
+    if (responded) return;
+    if (Date.now() > probeUntil) {
+      return respond(() => res.status(504).json({ error: 'SSH tunnel did not open within 8s' }));
     }
-  }, 2000);
+    const sock = net.createConnection({ host: '127.0.0.1', port: localPort });
+    sock.on('connect', () => {
+      sock.destroy();
+      const urlPort = isLocal ? localPort : DASHBOARD_HTTPS_PORT;
+      respond(() => res.json({ url: `${tunnelScheme}://${serverHost}:${urlPort}`, localPort, token: gatewayToken || null, reused: false }));
+    });
+    sock.on('error', () => { sock.destroy(); setTimeout(probe, 200); });
+  };
+  setTimeout(probe, 200);
 });
 
 // ── Routes: Auto-approve device pairing ──────────────────────────────────
@@ -2113,27 +2657,74 @@ app.post('/api/pair-approve', requireAuth, (req, res) => {
   try { ip = validateIp(req.body.ip); } catch (e) {
     return res.status(400).json({ error: 'Valid IP address is required' });
   }
+
+  // Token is opaque — restrict to URL-safe-base64 / hex shapes that openclaw
+  // emits. Reject anything fancy so it can't be misinterpreted by a remote shell.
   const token = req.body.token || '';
+  if (token && !/^[A-Za-z0-9._~+/=-]{1,256}$/.test(token)) {
+    return res.status(400).json({ error: 'Invalid token format' });
+  }
+
+  // Restrict to currently-known endpoint IPs to prevent SSH pivoting via the
+  // server's private key (defense for #M8).
+  if (!isKnownEndpointIp(ip)) {
+    eventLog.warn('TUNNEL', 'pair-approve rejected: unknown endpoint IP', { ip });
+    return res.status(403).json({ error: 'IP does not match a known endpoint' });
+  }
+
   const sshKey = findSshKey();
+  if (!sshKey) return res.status(500).json({ error: 'No SSH key available on server' });
 
   eventLog.info('TUNNEL', 'Auto-approving device pairing', { ip });
 
-  // Run approve in background with retries — the pairing request may arrive after a short delay
-  const tokenFlag = token ? `--token ${token}` : '';
-  const approveCmd = `ssh -i ${sshKey} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 nebius@${ip} ` +
-    `"for i in 1 2 3 4 5 6; do ` +
-    `  RESULT=\\$(sudo docker exec \\$(sudo docker ps -q | head -1) openclaw devices approve --latest ${tokenFlag} 2>&1); ` +
-    `  if echo \\"\\$RESULT\\" | grep -q 'Approved'; then echo \\"\\$RESULT\\"; exit 0; fi; ` +
-    `  sleep 3; ` +
-    `done; echo 'No pending pairing requests found'"`;
+  // Build the remote bash script as a heredoc-free single string. The token
+  // is passed via env (`-o SendEnv=PAIR_TOKEN`) — but `ssh` only forwards env
+  // vars the server lists in AcceptEnv, which we can't rely on. So instead we
+  // read it from stdin into a variable on the remote side, never interpolated.
+  // This keeps the user-supplied value out of any shell parse.
+  const remoteScript = `
+    set -e
+    PAIR_TOKEN=$(cat)
+    for i in 1 2 3 4 5 6; do
+      CID=$(sudo docker ps -q | head -1)
+      if [ -z "$CID" ]; then sleep 3; continue; fi
+      if [ -n "$PAIR_TOKEN" ]; then
+        RESULT=$(sudo docker exec "$CID" openclaw devices approve --latest --token "$PAIR_TOKEN" 2>&1)
+      else
+        RESULT=$(sudo docker exec "$CID" openclaw devices approve --latest 2>&1)
+      fi
+      if echo "$RESULT" | grep -q 'Approved'; then echo "$RESULT"; exit 0; fi
+      sleep 3
+    done
+    echo 'No pending pairing requests found'
+  `;
 
-  exec(approveCmd, { timeout: 30000, encoding: 'utf-8' }, (err, stdout, stderr) => {
-    if (stdout && stdout.includes('Approved')) {
+  const proc = spawn('ssh', [
+    '-i', sshKey,
+    '-o', 'StrictHostKeyChecking=no',
+    '-o', 'UserKnownHostsFile=/dev/null',
+    '-o', 'ConnectTimeout=10',
+    '-o', 'BatchMode=yes',
+    `nebius@${ip}`,
+    'bash', '-s',
+  ], { timeout: 30000 });
+
+  let stdout = '', stderr = '';
+  proc.stdout.on('data', d => stdout += d.toString('utf8'));
+  proc.stderr.on('data', d => stderr += d.toString('utf8'));
+  proc.on('close', () => {
+    if (stdout.includes('Approved')) {
       eventLog.info('TUNNEL', 'Device pairing approved', { ip, result: stdout.trim() });
     } else {
-      eventLog.warn('TUNNEL', 'Device pairing result', { ip, result: (stdout || stderr || err?.message || 'unknown').trim() });
+      eventLog.warn('TUNNEL', 'Device pairing result', { ip, result: redactString((stdout || stderr || 'unknown').trim()) });
     }
   });
+  proc.on('error', err => eventLog.error('TUNNEL', 'pair-approve spawn error', { ip, error: err.message }));
+
+  // Write the token to ssh's stdin, then close stdin so the remote heredoc-cat completes.
+  // (The remote `cat` reads stdin into PAIR_TOKEN; no characters from `token` ever touch a shell.)
+  proc.stdin.write(token);
+  proc.stdin.end();
 
   // Return immediately — approval happens in the background
   res.json({ status: 'approving', message: 'Auto-approving pairing in background (up to 18s)' });
@@ -2165,15 +2756,32 @@ app.get('/api/tunnels', requireAuth, (req, res) => {
 const wss = new WebSocket.Server({ noServer: true, perMessageDeflate: false });
 
 wss.on('connection', (ws, req) => {
+  // Defense-in-depth: the upgrade handler already checks auth, but make sure
+  // a misrouted upgrade can't bypass.
+  if (!req.session?.authenticated) {
+    try { ws.close(); } catch (_) {}
+    return;
+  }
+
   const url = new URL(req.url, `http://${req.headers.host}`);
   const rawIp = url.searchParams.get('ip');
-  const endpointId = url.searchParams.get('endpointId');
+  const rawEndpointId = url.searchParams.get('endpointId');
+  const endpointId = (rawEndpointId && /^[a-zA-Z0-9_-]{1,64}$/.test(rawEndpointId)) ? rawEndpointId : null;
 
   let ip;
   try {
     ip = validateIp(rawIp);
   } catch (e) {
     ws.send(JSON.stringify({ type: 'error', data: 'Invalid IP address' }));
+    ws.close();
+    return;
+  }
+
+  // Restrict to known endpoints. Without this, any authenticated user (incl.
+  // the universal "Demo User" if Vercel ever grew SSH access) could SSH from
+  // the server-as-`nebius@<arbitrary IP>` using the server's private key.
+  if (!isKnownEndpointIp(ip)) {
+    ws.send(JSON.stringify({ type: 'error', data: 'IP does not match a known endpoint' }));
     ws.close();
     return;
   }
@@ -2190,8 +2798,6 @@ wss.on('connection', (ws, req) => {
     nebiusEnv.PATH = `${nebiusBin}:${nebiusEnv.PATH || ''}`;
     if (wsToken) nebiusEnv.NEBIUS_IAM_TOKEN = wsToken;
 
-    // Check if endpoint has a public IP by looking at the proxy cache
-    const ep = Object.values(proxyEndpointCache).find(e => e.name === ip || e.ip === ip);
     const hasPublicIp = url.searchParams.get('hasPublicIp') === 'true';
 
     if (hasPublicIp) {
@@ -2303,6 +2909,11 @@ wss.on('connection', (ws, req) => {
 const wssLogs = new WebSocket.Server({ noServer: true, perMessageDeflate: false });
 
 wssLogs.on('connection', (ws, req) => {
+  if (!req.session?.authenticated) {
+    try { ws.close(); } catch (_) {}
+    return;
+  }
+
   const url = new URL(req.url, `http://${req.headers.host}`);
   const endpointId = url.searchParams.get('id');
 
@@ -2414,8 +3025,29 @@ if (!IS_VERCEL) {
   setInterval(refreshProxyCache, 120000);
 }
 
-app.use('/proxy/:endpointName', (req, res) => {
+// Hop-by-hop and sensitive headers we must NEVER forward to the upstream
+// endpoint. Connection, keep-alive, etc. are per RFC 7230; cookie/authorization
+// would leak our session secret to the endpoint host.
+const PROXY_STRIP_HEADERS = new Set([
+  'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
+  'te', 'trailer', 'transfer-encoding', 'upgrade',
+  'cookie', 'authorization', 'host',
+]);
+
+function buildProxyHeaders(reqHeaders, targetHost) {
+  const out = {};
+  for (const [k, v] of Object.entries(reqHeaders)) {
+    if (!PROXY_STRIP_HEADERS.has(k.toLowerCase())) out[k] = v;
+  }
+  out.host = targetHost;
+  return out;
+}
+
+app.use('/proxy/:endpointName', requireAuth, (req, res) => {
   const name = req.params.endpointName;
+  if (typeof name !== 'string' || !/^[a-zA-Z0-9._-]{1,128}$/.test(name)) {
+    return res.status(400).json({ error: 'Invalid endpoint name' });
+  }
   const endpoint = proxyEndpointCache[name];
 
   if (!endpoint) {
@@ -2432,28 +3064,39 @@ app.use('/proxy/:endpointName', (req, res) => {
     targetPath = subPath.replace(/^\/dashboard/, '') || '/';
   }
 
-  const targetUrl = `http://${endpoint.ip}:${targetPort}${targetPath}`;
+  const targetHost = `${endpoint.ip}:${targetPort}`;
+  const targetUrl = `http://${targetHost}${targetPath}`;
 
-  // Proxy the request
   const proxyReq = http.request(targetUrl, {
     method: req.method,
     headers: {
-      ...req.headers,
-      host: `${endpoint.ip}:${targetPort}`,
+      ...buildProxyHeaders(req.headers, targetHost),
       'x-forwarded-for': req.ip,
       'x-forwarded-proto': req.protocol,
-    }
+    },
+    timeout: 30000,
   }, (proxyRes) => {
-    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    // Mirror upstream headers but strip hop-by-hop too
+    const out = {};
+    for (const [k, v] of Object.entries(proxyRes.headers || {})) {
+      if (!PROXY_STRIP_HEADERS.has(k.toLowerCase())) out[k] = v;
+    }
+    res.writeHead(proxyRes.statusCode, out);
     proxyRes.pipe(res, { end: true });
   });
 
   proxyReq.on('error', (err) => {
-    eventLog.error('PROXY', 'HTTP proxy error', { targetUrl, error: err.message });
+    eventLog.error('PROXY', 'HTTP proxy error', { name, port: targetPort, error: err.message });
     if (!res.headersSent) {
-      res.status(502).json({ error: `Proxy error: ${err.message}` });
+      res.status(502).json({ error: 'Bad gateway' });
     }
   });
+  proxyReq.on('timeout', () => {
+    proxyReq.destroy(new Error('upstream timeout'));
+  });
+
+  // Stop the upstream if the client hangs up
+  req.on('close', () => { try { proxyReq.destroy(); } catch (_) {} });
 
   // Pipe request body for POST/PUT
   req.pipe(proxyReq, { end: true });
@@ -2481,15 +3124,30 @@ function requireAdmin(req, res, next) {
 }
 
 // POST /admin/api/auth
-app.post('/admin/api/auth', (req, res) => {
+const adminAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: 'Too many login attempts. Try again later.',
+});
+
+app.post('/admin/api/auth', adminAuthLimiter, (req, res) => {
   if (!ADMIN_ENABLED) return res.status(404).json({ error: 'Not found' });
-  if (!req.body.password || req.body.password !== ADMIN_PASSWORD) {
-    eventLog.warn('AUTH', 'Admin login failed');
-    return res.status(401).json({ error: 'Invalid admin password' });
+  const provided = typeof req.body?.password === 'string' ? req.body.password : '';
+  if (!provided || !safeEqual(provided, ADMIN_PASSWORD)) {
+    eventLog.warn('AUTH', 'Admin login failed', { ip: req.ip });
+    // Constant-ish delay to make brute-forcing more expensive
+    return setTimeout(() => res.status(401).json({ error: 'Invalid admin password' }), 250);
   }
-  req.session.isAdmin = true;
-  eventLog.info('AUTH', 'Admin login successful');
-  res.json({ ok: true });
+  // Regenerate session ID on privilege escalation to prevent session fixation
+  req.session.regenerate((err) => {
+    if (err) {
+      eventLog.error('AUTH', 'Session regenerate failed', { error: err.message });
+      return res.status(500).json({ error: 'Session error' });
+    }
+    req.session.isAdmin = true;
+    eventLog.info('AUTH', 'Admin login successful', { ip: req.ip });
+    res.json({ ok: true });
+  });
 });
 
 // POST /admin/api/logout
@@ -2579,52 +3237,71 @@ app.get('/admin.html', (req, res) => {
 });
 
 // ── SPA fallback ───────────────────────────────────────────────────────────
-app.get('*', (req, res) => {
+// Only fall back to index.html for non-API requests. /api/* typos should
+// 404 cleanly so the frontend's error handling fires instead of silently
+// receiving HTML.
+app.use((req, res, next) => {
+  if (req.method !== 'GET') return next();
+  if (req.path.startsWith('/api/') || req.path.startsWith('/admin/api/') || req.path.startsWith('/ws/') || req.path.startsWith('/proxy/')) {
+    return res.status(404).json({ error: 'Not found' });
+  }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // ── WebSocket upgrade handler (manual routing to avoid middleware interference) ──
+function denyUpgrade(socket, code = 401, msg = 'Unauthorized') {
+  try {
+    socket.write(`HTTP/1.1 ${code} ${msg}\r\nConnection: close\r\n\r\n`);
+  } catch (_) {}
+  try { socket.destroy(); } catch (_) {}
+}
+
 server.on('upgrade', (request, socket, head) => {
   // Parse Express session from cookie so WS handlers can access user tokens
   sessionMiddleware(request, {}, () => {
   const { pathname } = new URL(request.url, `http://${request.headers.host}`);
+  const authed = !!request.session?.authenticated;
 
   if (pathname === '/ws/terminal') {
+    if (!authed) return denyUpgrade(socket);
     wss.handleUpgrade(request, socket, head, (ws) => {
       wss.emit('connection', ws, request);
     });
   } else if (pathname === '/ws/logs') {
+    if (!authed) return denyUpgrade(socket);
     wssLogs.handleUpgrade(request, socket, head, (ws) => {
       wssLogs.emit('connection', ws, request);
     });
   } else if (pathname.startsWith('/proxy/')) {
+    if (!authed) return denyUpgrade(socket);
+
     // Proxy WebSocket to endpoint's gateway (port 18789)
     const parts = pathname.split('/');
-    const endpointName = decodeURIComponent(parts[2]);
-    const endpoint = proxyEndpointCache[endpointName];
+    const endpointName = decodeURIComponent(parts[2] || '');
+    if (!/^[a-zA-Z0-9._-]{1,128}$/.test(endpointName)) return denyUpgrade(socket, 400, 'Bad Request');
 
-    if (!endpoint) {
-      socket.destroy();
-      return;
-    }
+    const endpoint = proxyEndpointCache[endpointName];
+    if (!endpoint) return denyUpgrade(socket, 404, 'Not Found');
 
     // Use a dedicated WebSocket.Server to handle the client upgrade,
     // then bridge to the target gateway via a second WebSocket
     const proxyWss = new WebSocket.Server({ noServer: true, perMessageDeflate: false });
     proxyWss.handleUpgrade(request, socket, head, (clientWs) => {
       const targetUrl = `ws://${endpoint.ip}:18789`;
-      eventLog.info('PROXY', 'WS proxy bridge initiated', { targetUrl });
+      eventLog.info('PROXY', 'WS proxy bridge initiated', { endpointName });
 
+      // Do NOT forward the client's cookie/authorization to the endpoint.
+      const fwd = (request.headers['x-forwarded-for'] || request.socket.remoteAddress || '').toString();
       const targetWs = new WebSocket(targetUrl, {
         perMessageDeflate: false,
         headers: {
-          origin: request.headers.origin || `https://${request.headers.host}`,
-          'x-forwarded-for': request.headers['x-forwarded-for'] || request.socket.remoteAddress,
-        }
+          origin: `https://${request.headers.host}`,
+          'x-forwarded-for': fwd,
+        },
       });
 
       targetWs.on('open', () => {
-        eventLog.info('PROXY', 'WS proxy bridge connected', { targetUrl });
+        eventLog.info('PROXY', 'WS proxy bridge connected', { endpointName });
       });
 
       // Bridge: client → target
@@ -2641,12 +3318,12 @@ server.on('upgrade', (request, socket, head) => {
         }
       });
 
-      clientWs.on('close', () => targetWs.close());
-      targetWs.on('close', () => clientWs.close());
-      clientWs.on('error', () => targetWs.close());
+      clientWs.on('close', () => { try { targetWs.close(); } catch (_) {} });
+      targetWs.on('close', () => { try { clientWs.close(); } catch (_) {} });
+      clientWs.on('error', () => { try { targetWs.close(); } catch (_) {} });
       targetWs.on('error', (err) => {
         eventLog.error('PROXY', 'WS proxy target error', { error: err.message });
-        clientWs.close();
+        try { clientWs.close(); } catch (_) {}
       });
     });
   } else {
