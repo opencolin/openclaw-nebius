@@ -459,6 +459,24 @@
 (function() {
   'use strict';
 
+  // ── CSRF: attach token to all state-changing fetches ──
+  (function patchFetch() {
+    const orig = window.fetch.bind(window);
+    function csrf() {
+      const m = document.cookie.match(/(?:^|;\s*)csrf=([^;]+)/);
+      return m ? decodeURIComponent(m[1]) : '';
+    }
+    window.fetch = function (input, init) {
+      const method = (init?.method || 'GET').toUpperCase();
+      if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+        const headers = new Headers(init?.headers || {});
+        if (!headers.has('x-csrf-token')) headers.set('x-csrf-token', csrf());
+        init = { ...(init || {}), headers };
+      }
+      return orig(input, init);
+    };
+  })();
+
   // ── State ──
   const state = {
     authenticated: false,
