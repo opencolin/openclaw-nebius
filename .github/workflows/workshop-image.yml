@@ -1,0 +1,93 @@
+name: Workshop image
+
+# Builds and pushes ghcr.io/opencolin/openclaw-workshop on changes to workshop/.
+# Multi-arch (amd64 + arm64) so workshop attendees can pull on Apple Silicon
+# and the same image deploys to Nebius CPU endpoints.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "workshop/**"
+      - ".github/workflows/workshop-image.yml"
+  pull_request:
+    paths:
+      - "workshop/**"
+      - ".github/workflows/workshop-image.yml"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag (in addition to latest + sha)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: opencolin/openclaw-workshop
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: tags
+        env:
+          # Pull untrusted input into an env var so shell interpolation can't
+          # be turned into command injection.
+          MANUAL_TAG: ${{ github.event.inputs.tag }}
+          SHA_SHORT: ${{ github.sha }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          TAGS="${REGISTRY}/${IMAGE_NAME}:sha-${SHA_SHORT::7}"
+          if [ "${REF}" = "refs/heads/main" ]; then
+            TAGS="${TAGS},${REGISTRY}/${IMAGE_NAME}:latest"
+          fi
+          # Only allow a safe charset in the manual tag (no shell metachars).
+          if [ -n "${MANUAL_TAG}" ]; then
+            if printf '%s' "${MANUAL_TAG}" | grep -Eq '^[A-Za-z0-9._-]{1,128}$'; then
+              TAGS="${TAGS},${REGISTRY}/${IMAGE_NAME}:${MANUAL_TAG}"
+            else
+              echo "Refusing to use unsafe manual tag: ${MANUAL_TAG}" >&2
+              exit 1
+            fi
+          fi
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "Computed tags: ${TAGS}"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: workshop
+          file: workshop/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.title=OpenClaw Workshop
+            org.opencontainers.image.description=OpenClaw + Nebius Token Factory + Tavily + Slack, in a single container
+            org.opencontainers.image.source=https://github.com/opencolin/openclaw-nebius
+            org.opencontainers.image.licenses=MIT

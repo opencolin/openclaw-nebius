@@ -1,0 +1,26 @@
+# One-command local run for the workshop image.
+#
+# Usage:
+#   cp .env.example .env       # fill in your keys
+#   docker compose up
+#
+# The gateway listens on http://localhost:18789 and the Slack channel opens
+# a Socket Mode connection outbound to Slack — no inbound port needed for that.
+
+services:
+  openclaw:
+    image: ghcr.io/opencolin/openclaw-workshop:latest
+    # For local edits / dev, uncomment the build line and `docker compose build`:
+    # build: .
+    container_name: openclaw-workshop
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "18789:18789"   # OpenClaw gateway (dashboard + WebSocket)
+      - "8080:8080"     # healthcheck responder
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 30s
+      timeout: 5s
+      start_period: 45s
+      retries: 3

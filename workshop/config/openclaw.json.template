@@ -1,0 +1,60 @@
+{
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "${OPENCLAW_MODEL}"
+      }
+    }
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "tokenfactory": {
+        "baseUrl": "${TOKEN_FACTORY_URL}",
+        "apiKey": "${NEBIUS_API_KEY}",
+        "api": "openai-completions",
+        "models": [
+          { "id": "moonshotai/Kimi-K2.6",              "name": "Kimi K2.6"    },
+          { "id": "deepseek-ai/DeepSeek-V4-Pro",       "name": "DeepSeek V4 Pro" },
+          { "id": "nvidia/Nemotron-3-Nano-Omni",       "name": "Nemotron Nano" },
+          { "id": "zai-org/GLM-5.1",                   "name": "GLM-5.1"      },
+          { "id": "MiniMaxAI/MiniMax-M2.5",            "name": "MiniMax M2.5" },
+          { "id": "Qwen/Qwen3.5-397B-A17B-fast",       "name": "Qwen 3.5 fast" },
+          { "id": "zai-org/GLM-5",                     "name": "GLM-5"        },
+          { "id": "NousResearch/Hermes-4-405B",        "name": "Hermes 4"     },
+          { "id": "openai/gpt-oss-120b",               "name": "GPT-OSS"      },
+          { "id": "deepseek-ai/DeepSeek-V3.2",         "name": "DeepSeek V3.2" }
+        ]
+      }
+    }
+  },
+  "gateway": {
+    "mode": "local",
+    "bind": "lan",
+    "port": 18789,
+    "auth": {
+      "mode": "token",
+      "token": "${OPENCLAW_GATEWAY_TOKEN}"
+    },
+    "controlUi": {
+      "allowedOrigins": ["*"]
+    }
+  },
+  "tools": {
+    "web": {
+      "search": {
+        "provider": "tavily"
+      }
+    }
+  },
+  "channels": {
+    "slack": {
+      "enabled": true,
+      "mode": "socket",
+      "botToken": "${SLACK_BOT_TOKEN}",
+      "appToken": "${SLACK_APP_TOKEN}",
+      "dmPolicy": "open",
+      "groupPolicy": "open"
+    }
+  }
+}
