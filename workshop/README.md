@@ -34,10 +34,13 @@ it in any channel it's a member of and it will reply.
 ```bash
 docker run --rm -it \
   --env-file .env \
-  -p 18789:18789 \
+  -e OPENCLAW_HOST_PORT=28789 \
+  -p 28789:18789 \
   -p 8080:8080 \
   ghcr.io/opencolin/openclaw-workshop:latest
 ```
+
+Host port 28789 is intentional — picks a fight with no one. (If you don't run a local `openclaw gateway`, `-p 18789:18789` works fine; just drop the `OPENCLAW_HOST_PORT` env so the printed URL still matches.)
 
 ---
 
@@ -70,10 +73,11 @@ to `~/.openclaw/openclaw.json`, then launches the gateway.
 
 | Var                       | Default                                              |
 | ------------------------- | ---------------------------------------------------- |
-| `OPENCLAW_MODEL`          | `tokenfactory/zai-org/GLM-5`                         |
+| `OPENCLAW_MODEL`          | `tokenfactory/moonshotai/Kimi-K2.6`                  |
 | `TOKEN_FACTORY_URL`       | `https://api.tokenfactory.nebius.com/v1` (US: `…us-central1…`) |
 | `OPENCLAW_GATEWAY_TOKEN`  | random 32-hex generated at boot                      |
-| `OPENCLAW_GATEWAY_PORT`   | `18789`                                              |
+| `OPENCLAW_GATEWAY_PORT`   | `18789` (container-internal — don't change)          |
+| `OPENCLAW_HOST_PORT`      | `28789` (only used for the printed dashboard URL; must match the left side of the docker port mapping) |
 | `OPENCLAW_HEALTH_PORT`    | `8080`                                               |
 
 Don't have a Slack app yet? See [`SLACK-APP-SETUP.md`](SLACK-APP-SETUP.md).
@@ -82,18 +86,23 @@ Don't have a Slack app yet? See [`SLACK-APP-SETUP.md`](SLACK-APP-SETUP.md).
 
 ## Connecting the dashboard / TUI
 
-The gateway listens on `http://localhost:18789`. The dashboard URL is printed
-at startup with the token already in the hash:
+The gateway is reachable at `http://localhost:28789` from your host. The
+dashboard URL is printed at startup with the token already in the hash:
 
 ```
-Dashboard:  http://localhost:18789/#token=<token>&gatewayUrl=ws://localhost:18789
+Dashboard:  http://localhost:28789/#token=<token>&gatewayUrl=ws://localhost:28789
 ```
 
 Or attach via the TUI:
 
 ```bash
-openclaw tui --url ws://localhost:18789 --token <token>
+openclaw tui --url ws://localhost:28789 --token <token>
 ```
+
+> If you also have a host-installed `openclaw gateway` running, it owns port
+> 18789 on `127.0.0.1` — that's why this image deliberately maps to 28789 on
+> the host instead. The container's *internal* gateway port is still 18789;
+> only the host-side mapping is different.
 
 ---
 
@@ -141,7 +150,9 @@ Or set `OPENCLAW_MODEL=` in `.env` and `docker compose up -d`.
 | Symptom                                         | Fix |
 | ----------------------------------------------- | --- |
 | `SLACK_BOT_TOKEN must start with 'xoxb-'`       | You probably swapped bot and app tokens. `xoxb-` is the bot token; `xapp-` is the app-level token. |
-| Container exits, Slack errors `invalid_auth`    | Bot is uninstalled from the workspace, or the token was rotated. Reinstall the app in Slack. |
+| Container exits, Slack errors `invalid_auth` or `account_inactive` | Bot is uninstalled from the workspace, or the token was rotated. Re-install fresh at `https://api.slack.com/apps/<APP_ID>/install-on-team`, copy the new `xoxb-…`. |
+| **You changed `.env` but the container behaves like the old values** | **`docker restart` does NOT reload `--env-file`.** Use `docker compose down && docker compose up -d`. Verify with `docker exec workshop-test bash -c 'echo ${SLACK_BOT_TOKEN: -8}'`. |
+| **`missing_scope; needed: chat:write` even though scopes look right** | Slack's "Reinstall to Workspace" silently keeps the old scope set on the existing token. **Fully uninstall** at `https://<workspace>.slack.com/apps/manage` → Remove App → then install **fresh**. Also: remove `assistant:write` from the manifest if present — it blocks `chat:write` from being granted alongside it. |
 | `Unknown model: zai-org/GLM-5`                  | Use the fully qualified `tokenfactory/` prefix: `tokenfactory/zai-org/GLM-5`. |
 | `401` from Token Factory                        | Check key, and confirm `TOKEN_FACTORY_URL` matches your region (US tenants use `…us-central1…`). |
 | Dashboard says "device identity"                | Tokens must be passed in the URL **hash** (`#token=`), not the query string. The startup line gets this right — copy it verbatim. |

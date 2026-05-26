@@ -19,7 +19,7 @@ Go to **<https://api.slack.com/apps>** → **Create New App** → **From a manif
 ```yaml
 display_information:
   name: OpenClaw Workshop Bot
-  description: Agentic assistant powered by Nebius Token Factory + Tavily
+  description: Agentic assistant powered by Nebius Token Factory and Tavily
   background_color: "#0F172A"
 
 features:
@@ -27,23 +27,13 @@ features:
     display_name: OpenClaw Workshop Bot
     always_online: true
 
-  app_home:
-    home_tab_enabled: true
-    messages_tab_enabled: true
-    messages_tab_read_only_enabled: false
-
 oauth_config:
   scopes:
     bot:
       - app_mentions:read
-      - assistant:write
       - channels:history
       - channels:read
       - chat:write
-      - commands
-      - emoji:read
-      - files:read
-      - files:write
       - groups:history
       - groups:read
       - im:history
@@ -52,31 +42,27 @@ oauth_config:
       - mpim:history
       - mpim:read
       - mpim:write
-      - pins:read
-      - pins:write
-      - reactions:read
-      - reactions:write
-      - usergroups:read
       - users:read
 
 settings:
   event_subscriptions:
     bot_events:
       - app_mention
-      - assistant_thread_started
-      - assistant_thread_context_changed
       - message.channels
       - message.groups
       - message.im
       - message.mpim
-  interactivity:
-    is_enabled: true
   socket_mode_enabled: true
-  org_deploy_enabled: false
-  token_rotation_enabled: false
 ```
 
 Click **Create**.
+
+> **Why this manifest is deliberately minimal — the gotcha that ate hours of debugging:**
+>
+> - **No `assistant:write` scope.** It puts the app in Slack's "AI Assistant" surface mode and silently blocks `chat:write` from being granted alongside it. Symptom: the bot receives events fine but can never reply, and logs show `missing_scope; needed: chat:write` even though your manifest lists `chat:write` and the OAuth & Permissions page shows it.
+> - **No `commands`, `interactivity`, `app_home`, file/pin/reaction scopes.** Not needed for an @-mention chat bot. Less surface area = fewer silent compatibility traps.
+>
+> If you need any of those later, add them carefully to a fresh app and re-verify that `chat:write` survives.
 
 ---
 
@@ -132,11 +118,14 @@ and reply in-thread.
 
 | Problem                                  | Fix |
 | ---------------------------------------- | --- |
-| `not_authed` / `invalid_auth` in logs    | Re-install the app to the workspace after changing scopes. |
+| `not_authed` / `invalid_auth` / `account_inactive` | App is uninstalled in the workspace, or you pasted a stale token. Re-install at `https://api.slack.com/apps/<APP_ID>/install-on-team` and copy the fresh `xoxb-…`. |
 | Bot doesn't respond in DMs               | The manifest above already includes `im:*` scopes — but you must open a DM with the bot once to bootstrap the conversation. |
 | Bot responds in some channels, not others| Add it explicitly: `/invite @bot-name` in each. Slack does not auto-add to channels. |
 | `socket_mode_disabled` error             | You skipped step 2 (App-Level Token). Socket Mode requires the `xapp-…` token with `connections:write`. |
-| `missing_scope` for a specific action    | Add the scope under **OAuth & Permissions**, then **Reinstall to Workspace**. |
+| **`missing_scope; needed: chat:write` even though the OAuth page shows it** | **Slack's "Reinstall to Workspace" silently keeps the old scope set on the existing token if it thinks nothing changed.** You must FULLY uninstall (workspace's `/apps/manage` page → **Remove App**) and then install fresh — only that path issues a new token bound to the current scopes. |
+| `chat:write` won't grant no matter what you do | Your manifest probably has `assistant:write` — remove it (see the warning above the manifest). The two scopes are mutually exclusive under Slack's AI Assistant mode. |
+| You changed `.env` (rotated token), but the container behaves like the old token | `docker restart` does NOT reload `--env-file`. Use `docker compose down && docker compose up -d` (or `docker stop && docker rm && docker compose up -d` if you started via `docker run`). |
+| Some scopes silently drop on install in an enterprise workspace | Workspace has an "admin approval" or "scope allowlist" policy. Easiest workaround: create a free sandbox workspace at `https://slack.com/create` and install there. |
 
 ---
 

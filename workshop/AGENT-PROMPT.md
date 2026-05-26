@@ -88,27 +88,21 @@ a) Open **<https://api.slack.com/apps>** → **Create New App** → **From a man
 ```yaml
 display_information:
   name: OpenClaw Workshop Bot
-  description: Agentic assistant powered by Nebius Token Factory + Tavily
+  description: Agentic assistant powered by Nebius Token Factory and Tavily
   background_color: "#0F172A"
 
 features:
   bot_user:
     display_name: OpenClaw Workshop Bot
     always_online: true
-  app_home:
-    home_tab_enabled: true
-    messages_tab_enabled: true
-    messages_tab_read_only_enabled: false
 
 oauth_config:
   scopes:
     bot:
       - app_mentions:read
-      - assistant:write
       - channels:history
       - channels:read
       - chat:write
-      - commands
       - groups:history
       - groups:read
       - im:history
@@ -117,23 +111,20 @@ oauth_config:
       - mpim:history
       - mpim:read
       - mpim:write
-      - reactions:read
-      - reactions:write
       - users:read
 
 settings:
   event_subscriptions:
     bot_events:
       - app_mention
-      - assistant_thread_started
       - message.channels
       - message.groups
       - message.im
       - message.mpim
-  interactivity:
-    is_enabled: true
   socket_mode_enabled: true
 ```
+
+Important: do NOT add `assistant:write` to this manifest. It puts the app in Slack's AI Assistant surface mode and silently blocks `chat:write` from being granted to the bot token — the symptom is the bot can receive events but never reply, with `missing_scope; needed: chat:write` errors in the logs even though `chat:write` IS in the manifest.
 
 b) After the app is created, tell me: **Basic Information** → **App-Level Tokens** → **Generate Token and Scopes** → name `workshop-socket` → scope `connections:write` → Generate. Wait for me to paste the `xapp-…` token.
 
@@ -182,11 +173,14 @@ b) Mention the bot:
 
 c) While I wait for the reply, monitor the gateway logs for tool calls. Look for `[tavily]`, `[tokenfactory]`, and a final `[slack] sent` line.
 
-If the bot is silent for >30s, check `docker compose logs -f openclaw | grep -iE "slack|tavily|tokenfactory|error" | tail -20`. Common causes:
+If the bot is silent for >30s, check `docker compose logs -f openclaw | grep -iE "slack|tavily|tokenfactory|error" | tail -20`. Common causes and the EXACT fix for each:
 
-- Bot isn't in the channel — tell me to `/invite`.
-- Token quota exceeded — tell me to check the Nebius dashboard.
-- Tavily rate limit — tell me to wait a minute.
+- **Bot isn't in the channel** — tell me to `/invite @bot-name`. Slack does not push events to bots that aren't channel members.
+- **`missing_scope; needed: chat:write` in logs** — Slack's "Reinstall" silently keeps the original scope set bound to the existing token. Tell me to: (1) go to my workspace's `/apps/manage` and **Remove App** completely, (2) go to `https://api.slack.com/apps/<APP_ID>/install-on-team` and **Install to Workspace** fresh, (3) copy the new `xoxb-…`, paste to me. Then update `.env` AND recreate the container (see below).
+- **I just updated `.env` but behavior didn't change** — `docker restart` does NOT reload `--env-file`. Always use `docker compose down && docker compose up -d` (or `docker stop workshop-test && docker rm workshop-test && docker compose up -d` if I started via `docker run`). Verify with `docker exec workshop-test bash -c 'echo ${SLACK_BOT_TOKEN: -8}'` — last 8 chars should match the `.env` value.
+- **`account_inactive`** — the bot was uninstalled, or the token is from a previous install. Same fix as `missing_scope`: install fresh and copy the new token.
+- **Token Factory quota exceeded** — tell me to check the Nebius dashboard.
+- **Tavily rate limit** — tell me to wait a minute.
 
 ### 8. Wrap up
 

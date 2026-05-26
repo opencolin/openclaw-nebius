@@ -146,27 +146,21 @@ Paste this YAML and click **Next** → **Create**:
 ```yaml
 display_information:
   name: OpenClaw Workshop Bot
-  description: Agentic assistant powered by Nebius Token Factory + Tavily
+  description: Agentic assistant powered by Nebius Token Factory and Tavily
   background_color: "#0F172A"
 
 features:
   bot_user:
     display_name: OpenClaw Workshop Bot
     always_online: true
-  app_home:
-    home_tab_enabled: true
-    messages_tab_enabled: true
-    messages_tab_read_only_enabled: false
 
 oauth_config:
   scopes:
     bot:
       - app_mentions:read
-      - assistant:write
       - channels:history
       - channels:read
       - chat:write
-      - commands
       - groups:history
       - groups:read
       - im:history
@@ -175,23 +169,20 @@ oauth_config:
       - mpim:history
       - mpim:read
       - mpim:write
-      - reactions:read
-      - reactions:write
       - users:read
 
 settings:
   event_subscriptions:
     bot_events:
       - app_mention
-      - assistant_thread_started
       - message.channels
       - message.groups
       - message.im
       - message.mpim
-  interactivity:
-    is_enabled: true
   socket_mode_enabled: true
 ```
+
+> **Why no `assistant:write`?** It puts the app in Slack's AI Assistant surface mode and silently blocks `chat:write` from being granted alongside it. If you want the assistant tab later, add it back as a *separate* app — the workshop bot needs plain chat.
 
 > **Checkpoint:** you land on the new app's settings page. The left sidebar shows "Basic Information", "App Home", "OAuth & Permissions", etc.
 
@@ -255,8 +246,13 @@ If you see all of those, the bot is online.
 You'll also see this line — copy it, you'll use the URL to view the OpenClaw dashboard:
 
 ```text
->>   Dashboard:  http://localhost:18789/#token=<random>&gatewayUrl=ws://localhost:18789
+>>   Dashboard:  http://localhost:28789/#token=<random>&gatewayUrl=ws://localhost:28789
 ```
+
+> Why port 28789 and not 18789? OpenClaw's default gateway uses 18789 on
+> `127.0.0.1`. If you already run a local `openclaw gateway`, it grabs that
+> port first — so the workshop container deliberately maps to 28789 on your
+> host to coexist. Inside the container it's still 18789.
 
 ---
 
@@ -355,10 +351,14 @@ Same shape works for **Microsoft Teams, Discord, Telegram, WhatsApp** — swap t
 | `docker pull` says `unauthorized` or `not found` | The published image isn't ready yet — `docker compose build` builds locally instead. Adds ~2 min. |
 | `SLACK_BOT_TOKEN must start with 'xoxb-'` | Bot/app tokens swapped. `xoxb-` = bot token, `xapp-` = app-level token. |
 | `Gateway failed to start: Invalid config` | Edit `.env` and re-run `docker compose up` — usually a stray quote or extra space in a key. |
-| `[slack] invalid_auth` | App is uninstalled or token rotated. Reinstall it in **Install App** → **Reinstall to Workspace**. |
-| Bot silent in Slack after mention | (a) bot isn't in the channel — `/invite @OpenClaw Workshop Bot`; (b) check `docker compose logs -f openclaw \| grep -i slack` |
+| **Changed `.env` but the container still uses the old values** | **`docker restart` does NOT reload `--env-file` — it freezes env vars at create time.** Run `docker compose down && docker compose up -d`. If you started with raw `docker run`, do `docker stop workshop-test && docker rm workshop-test && docker compose up -d`. Verify with `docker exec workshop-test bash -c 'echo ${SLACK_BOT_TOKEN: -8}'` — last 8 chars should match `.env`. |
+| `[slack] invalid_auth` or `account_inactive` | App is uninstalled in the workspace, or you pasted a token from a previous install. Open `https://api.slack.com/apps/<APP_ID>/install-on-team` → **Install to Workspace** → copy the freshly-shown `xoxb-…`. |
+| **`[slack] missing_scope; needed: chat:write`** | **The bot was installed before `chat:write` was added — Slack's "Reinstall" silently keeps the old scope set on the existing token.** Fully uninstall from `https://<workspace>.slack.com/apps/manage` (find the bot → **Remove App**), then install fresh. The new install issues a token bound to the current scope set. |
+| **Slack manifest has `chat:write` but Slack still won't grant it** | **`assistant:write` in the manifest can put the app in "Slack AI Assistant" mode and silently block plain chat scopes.** Edit the manifest, remove `assistant:write` (and `assistant_thread_*` events), save, uninstall, install fresh. |
+| Bot silent in Slack after mention | (a) bot isn't in the channel — `/invite @your-bot-name`; (b) Socket Mode toggle is off — turn it on in **Socket Mode**; (c) check `docker logs -f workshop-test \| grep -i slack` |
 | `401 Unauthorized` from Token Factory | Verify the key and that `TOKEN_FACTORY_URL` matches your region (US tenants use `…us-central1…`). |
 | Dashboard URL shows "device identity" error | Token must be in URL **hash** (`#token=…`), not query. The startup log line gets this right — copy it verbatim. |
+| Workspace admin policy strips Slack scopes (rare) | Some workspaces have an "admin approval required" policy that silently drops un-approved scopes from the bot token. Easiest workaround: create a free sandbox workspace at `https://slack.com/create` and install the app there. |
 
 ---
 
