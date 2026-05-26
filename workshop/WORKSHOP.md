@@ -218,6 +218,8 @@ SLACK_BOT_TOKEN=xoxb-…
 > `SLACK_BOT_TOKEN=xoxb-…`
 > `SLACK_APP_TOKEN=xapp-…`
 
+> If anything Slack-side feels off, the **[full Slack settings reference](SLACK-APP-SETUP.md#full-slack-settings-reference)** covers every panel, scope, token type, and install-vs-reinstall trap — captures the entire debugging arc that produced this workshop.
+
 ---
 
 ## 5. Launch the bot (3 min)
