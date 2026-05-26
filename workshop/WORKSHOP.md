@@ -15,6 +15,8 @@ A 30-minute hands-on workshop. By the end, you'll have a Slack bot that:
 > 5. Launch + verify (5 min)
 > 6. Mention the bot (5 min)
 
+> **Prefer to have your AI coding agent drive this?** Paste [`AGENT-PROMPT.md`](AGENT-PROMPT.md) into Claude Code, Cursor, Codex, or Aider and it'll run the whole workshop interactively — pausing for keys, verifying each step, and recovering from common errors.
+
 ---
 
 ## 0. Before we start

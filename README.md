@@ -19,6 +19,8 @@ docker compose up
 
 Pre-built image (multi-arch, amd64 + arm64): `ghcr.io/opencolin/openclaw-workshop:latest`
 
+Or have your AI coding agent drive the whole thing: paste [workshop/AGENT-PROMPT.md](workshop/AGENT-PROMPT.md) into Claude Code, Cursor, Codex, or Aider.
+
 ## Install from ClawHub
 
 | | Install |
