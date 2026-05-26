@@ -27,6 +27,10 @@ die()  { printf '\033[1;31m✗\033[0m  %s\n' "$*" >&2; exit 1; }
 export TOKEN_FACTORY_URL="${TOKEN_FACTORY_URL:-https://api.tokenfactory.nebius.com/v1}"
 export OPENCLAW_MODEL="${OPENCLAW_MODEL:-tokenfactory/moonshotai/Kimi-K2.6}"
 export OPENCLAW_GATEWAY_TOKEN="${OPENCLAW_GATEWAY_TOKEN:-$(openssl rand -hex 16 2>/dev/null || echo workshop-$(hostname))}"
+# Host-facing port for the printed dashboard URL. Falls back to the in-container
+# gateway port when not set (e.g. when running with `docker run` and the default
+# `-p 18789:18789` mapping).
+export OPENCLAW_HOST_PORT="${OPENCLAW_HOST_PORT:-${OPENCLAW_GATEWAY_PORT}}"
 
 # ── 3. Materialize the OpenClaw config ──────────────────────────────────────
 # OpenClaw expects ~/.openclaw/openclaw.json. We intentionally don't override
@@ -75,7 +79,7 @@ ok "Plugins ready"
 # `gateway run` is the foreground variant (`start` installs a launchd/systemd
 # service which doesn't apply inside a container).
 log "Starting OpenClaw gateway…"
-log "Dashboard:  http://localhost:${OPENCLAW_GATEWAY_PORT}/#token=${OPENCLAW_GATEWAY_TOKEN}&gatewayUrl=ws://localhost:${OPENCLAW_GATEWAY_PORT}"
+log "Dashboard:  http://localhost:${OPENCLAW_HOST_PORT}/#token=${OPENCLAW_GATEWAY_TOKEN}&gatewayUrl=ws://localhost:${OPENCLAW_HOST_PORT}"
 log "Slack:      connecting via Socket Mode (no public URL required)"
 log ""
 log "Try this in Slack:    @your-bot what's the latest Anthropic news?"

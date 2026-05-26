@@ -4,8 +4,9 @@
 #   cp .env.example .env       # fill in your keys
 #   docker compose up
 #
-# The gateway listens on http://localhost:18789 and the Slack channel opens
-# a Socket Mode connection outbound to Slack — no inbound port needed for that.
+# Host port 28789 → container port 18789. Picked deliberately so the workshop
+# gateway doesn't collide with a host-installed `openclaw gateway` (which also
+# defaults to 18789). The dashboard is at http://localhost:28789.
 
 services:
   openclaw:
@@ -15,8 +16,12 @@ services:
     container_name: openclaw-workshop
     restart: unless-stopped
     env_file: .env
+    environment:
+      # Tell the entrypoint which host-facing port to print in the dashboard URL.
+      # Must match the left-hand side of the gateway port mapping below.
+      OPENCLAW_HOST_PORT: "28789"
     ports:
-      - "18789:18789"   # OpenClaw gateway (dashboard + WebSocket)
+      - "28789:18789"   # OpenClaw gateway (dashboard + WebSocket) — host:container
       - "8080:8080"     # healthcheck responder
     healthcheck:
       test: ["CMD", "/usr/local/bin/healthcheck.sh"]
