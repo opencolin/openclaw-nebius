@@ -4,6 +4,21 @@ Everything you need to run [OpenClaw](https://github.com/opencolin/openclaw) AI 
 
 > **Fork:** [github.com/opencolin/openclaw](https://github.com/opencolin/openclaw) — Nebius Token Factory built in as a first-class provider alongside Anthropic, OpenAI, DeepSeek, and the rest.
 
+## Workshop: Build an agentic Slack bot in 30 minutes
+
+A hands-on workshop that builds a Slack bot using **OpenClaw + Token Factory + Tavily** — all from a single Docker container. No GPU, no Node install, no public URL required.
+
+**[workshop/WORKSHOP.md](workshop/WORKSHOP.md)** — 30-minute step-by-step walkthrough.
+
+```bash
+git clone https://github.com/opencolin/openclaw-nebius.git
+cd openclaw-nebius/workshop
+cp .env.example .env       # paste 4 keys
+docker compose up
+```
+
+Pre-built image (multi-arch, amd64 + arm64): `ghcr.io/opencolin/openclaw-workshop:latest`
+
 ## Install from ClawHub
 
 | | Install |
@@ -19,6 +34,7 @@ Everything you need to run [OpenClaw](https://github.com/opencolin/openclaw) AI 
 | **[`nebius-skill`](nebius-skill)** | [Nebius Cloud Skill](https://clawhub.ai/plugins/nebius) -- deploy and manage Nebius infrastructure from your terminal |
 | **[`deploy-ui`](deploy-ui)** | Web UI for deploying OpenClaw to Nebius |
 | **[`deploy-scripts`](deploy-scripts)** | Shell scripts, Dockerfile, and configs for Nebius infrastructure automation |
+| **[`workshop`](workshop)** | Docker image bundling OpenClaw + Token Factory + Tavily + Slack channel — the workshop deliverable |
 
 ## Getting Started
 
