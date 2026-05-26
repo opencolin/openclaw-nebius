@@ -135,13 +135,13 @@ then post back to the channel.
 
 ## Switching models on the fly
 
+Edit `OPENCLAW_MODEL=` in `.env` to any `tokenfactory/<model-id>`, then:
+
 ```bash
-docker compose exec openclaw openclaw config set \
-  agents.defaults.model.primary "tokenfactory/deepseek-ai/DeepSeek-V3.2"
-docker compose restart openclaw
+docker compose down && docker compose up -d
 ```
 
-Or set `OPENCLAW_MODEL=` in `.env` and `docker compose up -d`.
+> `openclaw config set agents.defaults.model.primary …` also works, but only until the next container restart — the entrypoint regenerates `openclaw.json` from `OPENCLAW_MODEL` every time the container boots. Persistent changes go in `.env`.
 
 ---
 

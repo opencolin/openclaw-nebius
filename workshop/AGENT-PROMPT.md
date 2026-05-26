@@ -165,13 +165,21 @@ If after 60s any of those three lines is missing, dump the last 50 log lines, id
 Tell me to open my Slack workspace and:
 
 a) `/invite @OpenClaw Workshop Bot` in any channel (or create `#openclaw-test`).
-b) Mention the bot:
+b) Send a brief greeting first — for the very first message to a brand-new agent, OpenClaw's bundled `BOOTSTRAP.md` makes the bot introduce itself and ask "who am I? who are you?". This is expected. When that happens, tell me to reply with an identity prompt:
+
+```
+You're the OpenClaw Workshop Bot. I'm <name>. You're an agent powered by
+Nebius Token Factory (reasoning) and Tavily (web search). Use tavily_search
+whenever fresh information would help; otherwise reply directly. Be concise.
+```
+
+c) After the identity is set, mention the bot with a real task:
 
 ```
 @OpenClaw Workshop Bot search the web for what's new from Anthropic this week and summarize in 3 bullets
 ```
 
-c) While I wait for the reply, monitor the gateway logs for tool calls. Look for `[tavily]`, `[tokenfactory]`, and a final `[slack] sent` line.
+d) Monitor the gateway logs for tool calls. Look for `[tavily]`, `[tokenfactory]`, and a final `[slack] sent` line.
 
 If the bot is silent for >30s, check `docker compose logs -f openclaw | grep -iE "slack|tavily|tokenfactory|error" | tail -20`. Common causes and the EXACT fix for each:
 
@@ -186,10 +194,10 @@ If the bot is silent for >30s, check `docker compose logs -f openclaw | grep -iE
 
 Once the bot has replied successfully in Slack, summarize in 5 bullets what I just built and what's running where. Then tell me the next command for each common follow-up:
 
-- Switch models live
-- Stop the container
-- Restart it later
-- Switch to a different chat platform (Teams, Discord, etc.)
+- **Switch models** — edit `OPENCLAW_MODEL=` in `.env`, then `docker compose down && docker compose up -d`. Do NOT use `openclaw config set` — the entrypoint regenerates `openclaw.json` from `OPENCLAW_MODEL` on every container start, so config-set changes are wiped on the next restart.
+- **Stop the container** — `docker compose down`.
+- **Restart later** — `cd workshop && docker compose up -d`. The container picks up whatever's in `.env` at start time.
+- **Switch to a different chat platform** — edit `workshop/config/openclaw.json.template` to replace the `channels.slack` block with `channels.discord` / `channels.msteams` / etc., then rebuild and run.
 
 **Hard rules:**
 

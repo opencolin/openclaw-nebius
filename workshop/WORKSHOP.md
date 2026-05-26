@@ -284,6 +284,25 @@ Watch the same terminal — you'll see `[tavily]`, `[tokenfactory]`, and `[slack
 
 > **Checkpoint:** a real reply appears in your Slack thread within 10–30 seconds. If it doesn't, `docker compose logs -f openclaw | tail -50` is your friend.
 
+### 6b. Expect a "who am I?" introduction on the very first message
+
+OpenClaw ships with a `BOOTSTRAP.md` that fires on the *first* conversation a fresh agent ever has. So the very first reply from your bot will likely be something like:
+
+> Hey. I just came online. Who am I? Who are you?
+>
+> I woke up in this workspace and there's a `BOOTSTRAP.md` telling me to figure out who I am. So… here we are. What should we call me? What kind of creature am I — AI assistant, ghost in the machine, something weirder?
+
+This is expected — it's not an error. Reply in the thread with the identity you want it to assume. Example:
+
+```
+You're the OpenClaw Workshop Bot. I'm <your name>, the workshop instructor.
+You're an agent powered by Nebius Token Factory (for reasoning) and Tavily
+(for web search). Use tavily_search whenever fresh information would help;
+otherwise reply directly. Be concise.
+```
+
+The bot will lock that identity in and behave like a normal assistant from then on. From here on the responses skip the bootstrap.
+
 ### 6c. Try a few more prompts
 
 Mix tool-use with reasoning to see what each model is good at:
@@ -300,11 +319,13 @@ Mix tool-use with reasoning to see what each model is good at:
 
 ### Switch models live
 
+Edit `.env` and change the `OPENCLAW_MODEL=` line to any of the IDs in the table below, then:
+
 ```bash
-docker compose exec openclaw openclaw config set \
-  agents.defaults.model.primary "tokenfactory/deepseek-ai/DeepSeek-V3.2"
-docker compose restart openclaw
+docker compose down && docker compose up -d
 ```
+
+> Note: `openclaw config set agents.defaults.model.primary …` works, but only until the next container restart — the entrypoint regenerates `openclaw.json` from `OPENCLAW_MODEL` every time the container starts. Persistent changes go in `.env`.
 
 The container ships with these 10 models pre-listed (matching the slide deck's recommended set):
 
